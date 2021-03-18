@@ -29,15 +29,16 @@ class PrintBestLoss(Callback):
 
 
 class EarlyStoppingWithSigmasConvergence(Callback):
-    def __init__(self, patience=0, auto_norm_thresh=True, norm_thresh=0.01, ma_lag=5):
+    def __init__(self, patience=0, auto_ma_thresh=True, ma_thresh=0.01, ma_lag=10):
         super(EarlyStoppingWithSigmasConvergence, self).__init__()
         self.patience = patience
-        self.auto_norm_thresh = auto_norm_thresh
-        self.norm_thresh = norm_thresh
+        self.auto_ma_thresh = auto_ma_thresh
+        self.ma_thresh = ma_thresh
         self.ma_lag = ma_lag
+        self.sqrt_lag = np.sqrt(self.ma_lag)
         self.sig_hist = {'sig2e': [], 'sig2b': []}
-        if not auto_norm_thresh and norm_thresh is None:
-            raise ValueError('If auto_norm_thresh is False you must set norm_thresh.')
+        if not auto_ma_thresh and ma_thresh is None:
+            raise ValueError('If auto_ma_thresh is False you must set ma_thresh.')
     
     def record_sigmas(self):
         sig2e_est, sig2b_est = self.model.layers[-1].get_vars()
@@ -47,31 +48,33 @@ class EarlyStoppingWithSigmasConvergence(Callback):
     def on_train_begin(self, logs=None):
         # The number of epoch it has waited when loss hasn't decreased.
         self.wait_loss = 0
-        # The number of epoch it has waited when sigmas norm hasn't converged.
-        self.wait_norm = 0
+        # The number of epoch it has waited when sigmas MA hasn't converged.
+        self.wait_ma = 0
         # The epoch the training stops at.
         self.stopped_epoch = 0
         # Record initial sigmas
         self.record_sigmas()
-        # Initialize sigmas MA norm.
-        self.sig2e_norm, self.sig2b_norm = self.get_sigmas_norm()
+        # Initialize sigmas MA.
+        self.sig2e_ma, _, self.sig2b_ma, _ = self.get_sigmas_ma_sd()
         # Initialize best loss
         self.best_loss = np.Inf
 
-    def get_sigmas_norm(self):
-        sig2e_ma = np.mean(self.sig_hist['sig2e'][-self.ma_lag:])
-        sig2b_ma = np.mean(self.sig_hist['sig2b'][-self.ma_lag:])
-        return sig2e_ma, sig2b_ma
+    def get_sigmas_ma_sd(self):
+        previous_sig2e = self.sig_hist['sig2e'][-self.ma_lag:]
+        previous_sig2b = self.sig_hist['sig2b'][-self.ma_lag:]
+        sig2e_ma, sig2e_sd = np.mean(previous_sig2e), np.std(previous_sig2e)
+        sig2b_ma, sig2b_sd = np.mean(previous_sig2b), np.std(previous_sig2b)
+        return sig2e_ma, sig2e_sd, sig2b_ma, sig2b_sd
 
     def check_stop_model(self, epoch):
-        if self.wait_loss >= self.patience and self.wait_norm >= self.patience:
+        if self.wait_loss >= self.patience and self.wait_ma >= self.patience:
             self.stopped_epoch = epoch
             self.model.stop_training = True
     
     def on_epoch_end(self, epoch, logs=None):
         self.record_sigmas()
         current_loss = logs.get('val_loss')
-        current_sig2e_norm, current_sig2b_norm = self.get_sigmas_norm()
+        current_sig2e_ma, current_sig2e_sd, current_sig2b_ma, current_sig2b_sd = self.get_sigmas_ma_sd()
         
         if current_loss < self.best_loss:
             self.best_loss = current_loss
@@ -80,14 +83,15 @@ class EarlyStoppingWithSigmasConvergence(Callback):
             self.wait_loss += 1
             self.check_stop_model(epoch)
         
-        if self.auto_norm_thresh:
-            sig2e_nt, sig2b_nt = current_sig2e_norm / 100, current_sig2b_norm / 100
+        if self.auto_ma_thresh:
+            sig2e_nt, sig2b_nt = 2 * current_sig2e_sd / self.sqrt_lag, 2 * current_sig2b_sd / self.sqrt_lag
+            sig2e_nt, sig2b_nt = np.max([sig2e_nt, 0.01]), np.max([sig2b_nt, 0.01])
         else:
-            sig2e_nt, sig2b_nt = self.norm_thresh, self.norm_thresh
+            sig2e_nt, sig2b_nt = self.ma_thresh, self.ma_thresh
 
-        if np.abs(current_sig2e_norm - self.sig2e_norm) > sig2e_nt or np.abs(current_sig2b_norm - self.sig2b_norm) > sig2b_nt:
-            self.sig2e_norm, self.sig2b_norm = current_sig2e_norm, current_sig2b_norm
-            self.wait_norm = 0
+        if np.abs(current_sig2e_ma - self.sig2e_ma) > sig2e_nt or np.abs(current_sig2b_ma - self.sig2b_ma) > sig2b_nt:
+            self.sig2e_ma, self.sig2b_ma = current_sig2e_ma, current_sig2b_ma
+            self.wait_ma = 0
         else:
-            self.wait_norm += 1
+            self.wait_ma += 1
             self.check_stop_model(epoch)
