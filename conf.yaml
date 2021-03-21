@@ -7,14 +7,15 @@ sig2b_list:
 q_list:
   - 100
   - 1000
-N_list:
   - 10000
-n_iter: 2
+N_list:
+  - 100000
+n_iter: 10
 n_per_cat: 3
 fixed_intercept: 1
 n_fixed_effects: 10
-deep: 'no'
-non_linear: False
+deep: 'yes'
+non_linear: True
 batch: 30
-epochs: 2000
+epochs: 500
 patience: 10

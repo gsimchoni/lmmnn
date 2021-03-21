@@ -21,13 +21,12 @@ def generate_data(q, sig2e, sig2b, N, params):
     Z_idx = np.repeat(range(q), ns)
     b = np.random.normal(0, np.sqrt(sig2b), q)
     Zb = np.repeat(b, ns)
-    X = np.random.normal(0, np.sqrt(sig2e), N *
-                         n_fixed_effects).reshape((N, n_fixed_effects))
-    betas = np.random.normal(0, 3, n_fixed_effects)
+    X = np.random.uniform(-1, 1, N * n_fixed_effects).reshape((N, n_fixed_effects))
+    betas = np.ones(n_fixed_effects)
     Xbeta = params['fixed_intercept'] + X @ betas
     e = np.random.normal(0, np.sqrt(sig2e), N)
     if params['non_linear']:
-        fX = 0.1 * Xbeta * np.cos(Xbeta) + 2 * X[:, 0] * X[:, 1]
+        fX = Xbeta * np.cos(Xbeta) + 2 * X[:, 0] * X[:, 1]
     else:
         fX = Xbeta
     y = fX + Zb + e
