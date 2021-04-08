@@ -8,7 +8,7 @@ from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Resh
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras import Model
 
-from lmmnn.utils import NNResult
+from lmmnn.utils import NNResult, get_dummies
 from lmmnn.callbacks import EarlyStoppingWithSigmasConvergence
 from lmmnn.layers import NLL
 
@@ -59,20 +59,28 @@ def process_one_hot_encoding(X_train, X_test, x_cols):
     return X_train_ohe, X_test_ohe_comp
 
 
-def calc_b_hat(X_train, y_train, y_pred_tr, n_cats, sig2e, sig2b):
-    b_hat = []
-    for i in range(n_cats):
-        i_vec = X_train['z'] == i
-        n_i = i_vec.sum()
-        if n_i > 0:
-            y_bar_i = y_train[i_vec].mean()
-            y_pred_i = y_pred_tr[i_vec].mean()
-            # BP(b_i) = (n_i * sig2b / (sig2a + n_i * sig2b)) * (y_bar_i - y_pred_bar_i)
-            b_i = n_i * sig2b * (y_bar_i - y_pred_i) / (sig2e + n_i * sig2b)
-        else:
-            b_i = 0
-        b_hat.append(b_i)
-    return np.array(b_hat)
+def calc_b_hat(X_train, y_train, y_pred_tr, q, sig2e, sig2b, Z_non_linear, model):
+    if Z_non_linear:
+        W_est = model.get_layer('Z_embed').get_weights()[0]
+        gZ_train = get_dummies(X_train['z'], q) @ W_est
+        V = sig2e * np.eye(gZ_train.shape[0]) + sig2b * np.dot(gZ_train, gZ_train.T)
+        V_inv = np.linalg.inv(V)
+        b_hat = sig2b * gZ_train.T @ V_inv @ (y_train - y_pred_tr).values
+    else:
+        b_hat = []
+        for i in range(q):
+            i_vec = X_train['z'] == i
+            n_i = i_vec.sum()
+            if n_i > 0:
+                y_bar_i = y_train[i_vec].mean()
+                y_pred_i = y_pred_tr[i_vec].mean()
+                # BP(b_i) = (n_i * sig2b / (sig2a + n_i * sig2b)) * (y_bar_i - y_pred_bar_i)
+                b_i = n_i * sig2b * (y_bar_i - y_pred_i) / (sig2e + n_i * sig2b)
+            else:
+                b_i = 0
+            b_hat.append(b_i)
+        b_hat = np.array(b_hat)
+    return b_hat
 
 
 def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False, ignore_RE=False):
@@ -98,7 +106,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, q, x_cols, batch_size
     return y_pred, (None, None), len(history.history['loss'])
 
 
-def reg_nn_lmm(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False):
+def reg_nn_lmm(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
     X_input = Input(shape=(X_train[x_cols].shape[1],))
     y_true_input = Input(shape=(1,))
     Z_input = Input(shape=(1,), dtype=tf.int64)
@@ -107,7 +115,14 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, 
     else:
         out_hidden = add_shallow_layers_functional(X_input)
     y_pred_output = Dense(1)(out_hidden)
-    nll = NLL(1.0, 1.0)(y_true_input, y_pred_output, Z_input)
+    if Z_non_linear:
+        l = int(q * Z_embed_dim_pct / 100.0)
+        Z_embed = Embedding(q, l, input_length=1, name='Z_embed')(Z_input)
+        Z_embed = Reshape(target_shape=(l, ))(Z_embed)
+        Z_nll_input = Z_embed
+    else:
+        Z_nll_input = Z_input
+    nll = NLL(1.0, 1.0, Z_non_linear)(y_true_input, y_pred_output, Z_nll_input)
     model = Model(inputs=[X_input, y_true_input, Z_input], outputs=nll)
 
     model.compile(optimizer='adam')
@@ -121,10 +136,16 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, 
     sig2e_est, sig2b_est = model.layers[-1].get_vars()
     y_pred_tr = model.predict(
         [X_train[x_cols], y_train, X_train['z']]).reshape(X_train.shape[0])
-    b_hat = calc_b_hat(X_train, y_train, y_pred_tr, q, sig2e_est, sig2b_est)
+    b_hat = calc_b_hat(X_train, y_train, y_pred_tr, q, sig2e_est, sig2b_est, Z_non_linear, model)
     dummy_y_test = np.random.normal(size=y_test.shape)
-    y_pred = model.predict([X_test[x_cols], dummy_y_test, X_test['z']]).reshape(
-        X_test.shape[0]) + b_hat[X_test['z']]
+    if Z_non_linear:
+        Z_test = get_dummies(X_test['z'], q)
+        W_est = model.get_layer('Z_embed').get_weights()[0]
+        y_pred = model.predict([X_test[x_cols], dummy_y_test, X_test['z']]).reshape(
+            X_test.shape[0]) + Z_test @ W_est @ b_hat
+    else:
+        y_pred = model.predict([X_test[x_cols], dummy_y_test, X_test['z']]).reshape(
+            X_test.shape[0]) + b_hat[X_test['z']]
     return y_pred, (sig2e_est, sig2b_est), len(history.history['loss'])
 
 
@@ -155,14 +176,14 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
     return y_pred, (None, None), len(history.history['loss'])
 
 
-def reg_nn(X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, reg_type, deep):
+def reg_nn(X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, reg_type, deep, Z_non_linear, Z_embed_dim_pct):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep)
     elif reg_type == 'lmm':
         y_pred, sigmas, n_epochs = reg_nn_lmm(
-            X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep)
+            X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep, Z_non_linear, Z_embed_dim_pct)
     elif reg_type == 'ignore':
         y_pred, sigmas, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep, ignore_RE=True)

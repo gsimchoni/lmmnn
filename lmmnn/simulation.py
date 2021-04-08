@@ -47,7 +47,9 @@ def iterate_reg_types(counter, res_df, out_file, nn_in):
 
 
 def run_reg_nn(nn_in, reg_type):
-    return reg_nn(nn_in.X_train, nn_in.X_test, nn_in.y_train, nn_in.y_test, nn_in.q, nn_in.x_cols, nn_in.batch, nn_in.epochs, nn_in.patience, reg_type=reg_type, deep=nn_in.deep)
+    return reg_nn(nn_in.X_train, nn_in.X_test, nn_in.y_train, nn_in.y_test, nn_in.q,
+        nn_in.x_cols, nn_in.batch, nn_in.epochs, nn_in.patience, reg_type=reg_type,
+        deep=nn_in.deep, Z_non_linear=nn_in.Z_non_linear, Z_embed_dim_pct = nn_in.Z_embed_dim_pct)
 
 
 def summarize_sim(nn_in, res, reg_type):
@@ -72,10 +74,12 @@ def simulation(out_file, params):
                             logger.info(' iteration: %d, deep: %s' %
                                         (k, False))
                             nn_in = NNInput(X_train, X_test, y_train, y_test, x_cols, N, q, sig2e,
-                                            sig2b, k, False, params['batch'], params['epochs'], params['patience'])
+                                            sig2b, k, False, params['batch'], params['epochs'], params['patience'],
+                                            params['Z_non_linear'], params['Z_embed_dim_pct'])
                             iterate_reg_types(counter, res_df, out_file, nn_in)
                         if deep in ['yes', 'both']:
                             logger.info(' iteration: %d, deep: %s' % (k, True))
                             nn_in = NNInput(X_train, X_test, y_train, y_test, x_cols, N, q, sig2e,
-                                            sig2b, k, True, params['batch'], params['epochs'], params['patience'])
+                                            sig2b, k, True, params['batch'], params['epochs'], params['patience'],
+                                            params['Z_non_linear'], params['Z_embed_dim_pct'])
                             iterate_reg_types(counter, res_df, out_file, nn_in)
