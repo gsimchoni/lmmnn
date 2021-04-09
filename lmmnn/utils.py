@@ -13,8 +13,9 @@ NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_co
                                  'Z_non_linear', 'Z_embed_dim_pct'])
 
 def get_dummies(vec, vec_max):
-    Z = np.zeros((vec.size, vec_max), dtype=np.uint8)
-    Z[np.arange(vec.size), vec] = 1
+    vec_size = vec.size
+    Z = np.zeros((vec_size, vec_max), dtype=np.uint8)
+    Z[np.arange(vec_size), vec] = 1
     return Z
 
 def generate_data(q, sig2e, sig2b, N, params):

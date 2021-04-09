@@ -10,13 +10,13 @@ q_list:
   - 10000
 N_list:
   - 100000
-n_iter: 10
+n_iter: 3
 n_per_cat: 3
 fixed_intercept: 1
 n_fixed_effects: 10
 deep: 'yes'
 X_non_linear: True
-Z_non_linear: False
+Z_non_linear: True
 Z_embed_dim_pct: 10
 batch: 30
 epochs: 500

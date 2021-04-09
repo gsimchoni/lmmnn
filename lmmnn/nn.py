@@ -61,11 +61,15 @@ def process_one_hot_encoding(X_train, X_test, x_cols):
 
 def calc_b_hat(X_train, y_train, y_pred_tr, q, sig2e, sig2b, Z_non_linear, model):
     if Z_non_linear:
+        if X_train.shape[0] > 10000:
+            samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+        else:
+            samp = np.arange(X_train.shape[0])
         W_est = model.get_layer('Z_embed').get_weights()[0]
-        gZ_train = get_dummies(X_train['z'], q) @ W_est
+        gZ_train = get_dummies(X_train['z'].values[samp], q) @ W_est
         V = sig2e * np.eye(gZ_train.shape[0]) + sig2b * np.dot(gZ_train, gZ_train.T)
         V_inv = np.linalg.inv(V)
-        b_hat = sig2b * gZ_train.T @ V_inv @ (y_train - y_pred_tr).values
+        b_hat = sig2b * gZ_train.T @ V_inv @ (y_train.values[samp] - y_pred_tr[samp])
     else:
         b_hat = []
         for i in range(q):
