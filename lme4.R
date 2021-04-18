@@ -7,12 +7,12 @@ setwd("C:/Users/gsimchoni/lmmnn")
 
 lmmnn_utils <- import("lmmnn.utils")
 params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
-                    non_linear = TRUE, n_iter = 10L)
+                    X_non_linear = TRUE, Z_non_linear = TRUE, Z_embed_dim_pct = 10)
 sig2e <- 1.0
 sig2b_list <- c(0.1, 1.0, 10.0)
 q_list <- c(100L, 1000L, 10000L)
 N <- 100000L
-n_iter <- 10
+n_iter <- 5
 
 res_list <- list()
 counter <- 0
