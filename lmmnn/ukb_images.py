@@ -407,7 +407,7 @@ def ukb_simulation(out_file, params):
     res_df = pd.DataFrame(columns=['exp_type', 'mse', 'mae', 'sigma_e_est', 'sigma_b_est'])
     counter = Count().gen()
     n_cats = images_df['subject_id2'].max() + 1
-    for i in range(2, params['n_iter'] + 1):
+    for i in range(params['n_iter']):
         logger.info('iteration: %d' % i)
         train_samp_subj, valid_samp_subj, test_samp_subj = sample_split(i, n_cats)
         iterate_reg_types(images_df, images_dir, res_df, counter, n_cats, train_samp_subj, valid_samp_subj, test_samp_subj,
