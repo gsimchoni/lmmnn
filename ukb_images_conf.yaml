@@ -1,4 +1,4 @@
-n_iter: 10
+n_iter: 5
 Z_non_linear: False
 Z_embed_dim_pct: 10
 batch: 15

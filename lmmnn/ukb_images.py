@@ -3,6 +3,7 @@ import logging
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import KFold
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras import Model
@@ -20,13 +21,13 @@ logger = logging.getLogger('UKB.logger')
 
 IMG_WIDTH = 299
 
-def sample_split(seed, n_subjects, train_frac=0.72, valid_n = 1600):
+def sample_split(seed, train_index_subj, valid_frac = 0.1):
     np.random.seed(seed)
-    # n_subjects = np.max(images_df['subject_id2'].unique()) + 1
-    train_samp_subj = np.random.choice(n_subjects, int(train_frac * n_subjects), replace=False)
-    valid_samp_subj = np.random.choice(np.delete(np.arange(n_subjects), train_samp_subj), valid_n, replace=False)
-    test_samp_subj = np.delete(np.arange(n_subjects), np.concatenate([train_samp_subj, valid_samp_subj]))
-    return train_samp_subj, valid_samp_subj, test_samp_subj
+    train_n = len(train_index_subj)
+    valid_samp = np.random.choice(train_n, int(valid_frac * train_n), replace=False)
+    valid_index_subj = train_index_subj[valid_samp]
+    train_index_subj = np.delete(train_index_subj, valid_samp)
+    return train_index_subj, valid_index_subj
 
 def cnn_ignore():
     input_layer = Input((IMG_WIDTH, IMG_WIDTH, 3))
@@ -407,8 +408,9 @@ def ukb_simulation(out_file, params):
     res_df = pd.DataFrame(columns=['exp_type', 'mse', 'mae', 'sigma_e_est', 'sigma_b_est'])
     counter = Count().gen()
     n_cats = images_df['subject_id2'].max() + 1
-    for i in range(params['n_iter']):
+    kf = KFold(n_splits=params['n_iter'])
+    for i, (train_index_subj, test_index_subj) in enumerate(kf.split(np.zeros(n_cats), np.zeros(n_cats))):
         logger.info('iteration: %d' % i)
-        train_samp_subj, valid_samp_subj, test_samp_subj = sample_split(i, n_cats)
-        iterate_reg_types(images_df, images_dir, res_df, counter, n_cats, train_samp_subj, valid_samp_subj, test_samp_subj,
+        train_index_subj, valid_index_subj = sample_split(i, train_index_subj)
+        iterate_reg_types(images_df, images_dir, res_df, counter, n_cats, train_index_subj, valid_index_subj, test_index_subj,
             out_file, batch_size=params['batch'], epochs=params['epochs'], patience=params['patience'])
