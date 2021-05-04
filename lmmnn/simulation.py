@@ -39,10 +39,14 @@ def iterate_reg_types(counter, res_df, out_file, nn_in):
     res = run_reg_nn(nn_in, 'embed')
     embed_res = summarize_sim(nn_in, res, 'embed')
     logger.debug('  Finished Embedding.')
+    res = run_reg_nn(nn_in, 'menet')
+    me_res = summarize_sim(nn_in, res, 'menet')
+    logger.debug('  Finished MeNet.')
     res_df.loc[next(counter)] = ohe_res
     res_df.loc[next(counter)] = lmm_res
     res_df.loc[next(counter)] = ig_res
     res_df.loc[next(counter)] = embed_res
+    res_df.loc[next(counter)] = me_res
     res_df.to_csv(out_file)
 
 
