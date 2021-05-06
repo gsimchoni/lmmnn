@@ -1,11 +1,11 @@
 import numpy as np
 from collections import Counter
 from sklearn.model_selection import train_test_split
-import tensorflow.keras.backend as K
+from tensorflow.keras import Model
 
 def get_feature_map(model, X):
-    f = K.function([model.layers[0].input], [model.layers[-2].output])
-    return f(X)[0]
+    last_layer = Model(inputs = model.input, outputs = model.layers[-2].output)
+    return last_layer.predict(X)
 
 
 def nll_i(y_i, f_hat_i, Z_i, b_hat_i, R_hat_i, D_hat):
@@ -83,16 +83,16 @@ def menet_fit(model, X, y, clusters, n_clusters, batch_size, epochs, patience, v
             D_hat_sum = D_hat_sum + b_hat_i @ np.transpose(b_hat_i) + (D_hat - D_hat @ np.transpose(Z_i) @ V_hat_inv_i @ Z_i @ D_hat)
         sig2e_est = sig2e_est_sum / X_train.shape[0]
         D_hat = D_hat_sum / n_clusters
-        nll_train = compute_nll(model, X_train, y_train, b_hat, D_hat, sig2e_est, maps2ind_train, n_clusters, cnt_clusters_train)
+        # nll_train = compute_nll(model, X_train, y_train, b_hat, D_hat, sig2e_est, maps2ind_train, n_clusters, cnt_clusters_train)
         nll_valid = compute_nll(model, X_valid, y_valid, b_hat, D_hat, sig2e_est, maps2ind_valid, n_clusters, cnt_clusters_valid)
-        nll_history['train'].append(nll_train)
+        # nll_history['train'].append(nll_train)
         nll_history['valid'].append(nll_valid)
         best_loss, wait_loss, stop_model = check_stop_model(nll_valid, best_loss, wait_loss, patience)
         if verbose:
             print(f'epoch: {epoch}, val_loss: {nll_valid:.2f}, sig2e_est: {sig2e_est:.2f}')
         if stop_model:
             break
-    n_epochs = len(nll_history['train'])
+    n_epochs = len(nll_history['valid'])
     return model, b_hat, sig2e_est, n_epochs, nll_history
 
 
