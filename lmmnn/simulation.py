@@ -1,3 +1,4 @@
+import os
 import logging
 
 import pandas as pd
@@ -6,7 +7,7 @@ from lmmnn.nn import reg_nn
 from lmmnn.utils import generate_data, NNInput, SimResult
 
 logger = logging.getLogger('LMMNN.logger')
-
+os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 
 class Count:
     curr = 0
