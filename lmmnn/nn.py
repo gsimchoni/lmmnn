@@ -11,6 +11,7 @@ from tensorflow.keras import Model
 from lmmnn.utils import NNResult, get_dummies
 from lmmnn.callbacks import EarlyStoppingWithSigmasConvergence
 from lmmnn.layers import NLL
+from lmmnn.menet import menet_fit, menet_predict
 
 
 def add_shallow_layers_sequential(model, input_dim):
@@ -180,6 +181,25 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
     return y_pred, (None, None), len(history.history['loss'])
 
 
+def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False):
+    clusters_train, clusters_test = X_train['z'].values, X_test['z'].values
+    X_train, X_test = X_train[x_cols].values, X_test[x_cols].values
+    y_train, y_test = y_train.values, y_test.values
+
+    model = Sequential()
+    if deep:
+        add_deep_layers_sequential(model, X_train.shape[1])
+    else:
+        add_shallow_layers_sequential(model, X_train.shape[1])
+    model.add(Dense(1))
+
+    model.compile(loss='mse', optimizer='adam')
+
+    model, b_hat, sig2e_est, n_epochs, _ = menet_fit(model, X_train, y_train, clusters_train, q, batch_size, epochs, patience, verbose=False)
+    y_pred = menet_predict(model, X_test, clusters_test, q, b_hat)
+    return y_pred, (sig2e_est, None), n_epochs
+
+
 def reg_nn(X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, reg_type, deep, Z_non_linear, Z_embed_dim_pct):
     start = time.time()
     if reg_type == 'ohe':
@@ -191,9 +211,14 @@ def reg_nn(X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience,
     elif reg_type == 'ignore':
         y_pred, sigmas, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep, ignore_RE=True)
-    else:
+    elif reg_type == 'embed':
         y_pred, sigmas, n_epochs = reg_nn_embed(
             X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep)
+    elif reg_type == 'menet':
+        y_pred, sigmas, n_epochs = reg_nn_menet(
+            X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep)
+    else:
+        raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
     mse = np.mean((y_pred - y_test)**2)
     return NNResult(mse, sigmas, n_epochs, end - start)
