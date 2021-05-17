@@ -32,8 +32,8 @@ def add_shallow_layers_functional(X_input):
     return Dense(10)(X_input)
 
 
-def add_deep_layers_functional(X_input):
-    hidden1 = Dense(100, activation='relu')(X_input)
+def add_deep_layers_functional(X_input, input_dim):
+    hidden1 = Dense(100, input_dim=input_dim, activation='relu')(X_input)
     drop1 = Dropout(0.25)(hidden1)
     hidden2 = Dense(50, activation='relu')(drop1)
     drop2 = Dropout(0.25)(hidden2)
@@ -116,7 +116,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, 
     y_true_input = Input(shape=(1,))
     Z_input = Input(shape=(1,), dtype=tf.int64)
     if deep:
-        out_hidden = add_deep_layers_functional(X_input)
+        out_hidden = add_deep_layers_functional(X_input, X_train[x_cols].shape[1])
     else:
         out_hidden = add_shallow_layers_functional(X_input)
     y_pred_output = Dense(1)(out_hidden)
@@ -133,10 +133,15 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, 
     model.compile(optimizer='adam')
 
     patience = epochs if patience is None else patience
-    callbacks = [EarlyStoppingWithSigmasConvergence(patience=patience)]
+    if Z_non_linear:
+        callbacks = [EarlyStoppingWithSigmasConvergence(patience=patience)]
+    else:
+        callbacks = [EarlyStopping(patience=patience, monitor='val_loss')]
+        X_train.sort_values(by=['z'], inplace=True)
+        y_train = y_train[X_train.index]
     history = model.fit([X_train[x_cols], y_train, X_train['z']], None,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
-                        callbacks=callbacks, verbose=0)
+                        callbacks=callbacks, verbose=0, shuffle=False)
 
     sig2e_est, sig2b_est = model.layers[-1].get_vars()
     y_pred_tr = model.predict(
@@ -163,7 +168,7 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
     embed = Reshape(target_shape=(embed_dim,))(embed)
     concat = Concatenate()([X_input, embed])
     if deep:
-        out_hidden = add_deep_layers_functional(concat)
+        out_hidden = add_deep_layers_functional(concat, X_train[x_cols].shape[1] + embed_dim)
     else:
         out_hidden = add_shallow_layers_functional(concat)
     output = Dense(1)(out_hidden)
