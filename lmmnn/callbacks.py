@@ -6,15 +6,16 @@ from tensorflow.keras.callbacks import Callback
 
 class PrintSigmas(Callback):
     """Print sigmas at each epoch end"""
-    def __init__(self):
+    def __init__(self, print_steps = 10):
         super(PrintSigmas, self).__init__()
         self.sig_hist = {'sig2e': [], 'sig2b': []}
+        self.print_steps = print_steps
 
     def on_epoch_end(self, epoch, logs=None):
         sig2e, sig2b = self.model.layers[-1].get_vars()
         self.sig_hist['sig2e'].append(sig2e)
         self.sig_hist['sig2b'].append(sig2b)
-        if epoch > 0 and epoch % 10 == 0:
+        if epoch > 0 and (epoch + 1) % self.print_steps == 0:
             print(' sig2e: %.2f, sig2b: %.2f' % (sig2e, sig2b))
 
 
