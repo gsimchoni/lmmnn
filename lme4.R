@@ -7,7 +7,7 @@ setwd("C:/Users/gsimchoni/lmmnn")
 
 lmmnn_utils <- import("lmmnn.utils")
 params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
-                    X_non_linear = TRUE, Z_non_linear = TRUE, Z_embed_dim_pct = 10)
+                    X_non_linear = TRUE, Z_non_linear = FALSE, Z_embed_dim_pct = 10)
 sig2e <- 1.0
 sig2b_list <- c(0.1, 1.0, 10.0)
 q_list <- c(100L, 1000L, 10000L)
@@ -36,7 +36,9 @@ for (sig2b in sig2b_list) {
       df_test <- cbind(df_test, X_test)
       
       form <- as.formula(str_c("y ~ ", str_c(str_c(str_c("X", 0:9), collapse = " + "), " + (1 | z)")))
+      start <- Sys.time()
       out <- lmer(form, df_train)
+      end <- Sys.time()
       
       sigmas <- as.data.frame(VarCorr(out))
       sig2e_est <- sigmas[2, "vcov"]
@@ -54,7 +56,9 @@ for (sig2b in sig2b_list) {
         exp_type = "lme4",
         mse = mse,
         sig2e_est = sig2e_est,
-        sig2b_est = sig2b_est
+        sig2b_est = sig2b_est,
+        n_epochs = 0,
+        time = end - start
       )
     }
   }
