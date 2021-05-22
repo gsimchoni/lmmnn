@@ -15,7 +15,7 @@ class PrintSigmas(Callback):
         sig2e, sig2b = self.model.layers[-1].get_vars()
         self.sig_hist['sig2e'].append(sig2e)
         self.sig_hist['sig2b'].append(sig2b)
-        if epoch > 0 and (epoch + 1) % self.print_steps == 0:
+        if (epoch + 1) % self.print_steps == 0:
             print(' sig2e: %.2f, sig2b: %.2f' % (sig2e, sig2b))
 
 
