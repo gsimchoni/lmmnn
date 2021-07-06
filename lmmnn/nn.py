@@ -75,7 +75,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
             samp = np.random.choice(X_train.shape[0], 10000, replace=False)
         else:
             samp = np.arange(X_train.shape[0])
-        V = sig2e * np.eye(X_train.shape[0])
+        V = sig2e * np.eye(X_train.values[samp].shape[0])
         gZ_trains = []
         for k, sig2b in enumerate(sig2bs):
             gZ_train = get_dummies(X_train['z' + str(k)].values[samp], qs[k])
