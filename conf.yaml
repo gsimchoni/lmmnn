@@ -1,16 +1,22 @@
 sig2e_list:
   - 1.0
 sig2b_list:
-  - 0.1
-  - 1.0
-  - 10.0
+  -
+    - 0.1
+    - 5.0
+  -
+    - 0.5
+    - 5.0
 q_list:
-  - 100
-  - 1000
-  - 10000
+  -
+    - 10
+    - 100
+  -
+    - 10
+    - 100
 N_list:
-  - 100000
-n_iter: 5
+  - 10000
+n_iter: 2
 n_per_cat: 3
 fixed_intercept: 1
 n_fixed_effects: 10

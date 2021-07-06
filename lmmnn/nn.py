@@ -44,43 +44,63 @@ def add_deep_layers_functional(X_input, input_dim):
 
 
 def process_one_hot_encoding(X_train, X_test, x_cols):
-    X_train_ohe = pd.concat(
-        [X_train[x_cols], pd.get_dummies(X_train['z'])], axis=1)
-    X_test_ohe = pd.concat(
-        [X_test[x_cols], pd.get_dummies(X_test['z'])], axis=1)
-    X_test_cols_in_train = set(
-        X_test_ohe.columns).intersection(X_train_ohe.columns)
-    X_train_cols_not_in_test = set(
-        X_train_ohe.columns).difference(X_test_ohe.columns)
-    X_test_comp = pd.DataFrame(np.zeros((X_test.shape[0], len(X_train_cols_not_in_test))),
-                               columns=X_train_cols_not_in_test, dtype=np.uint8, index=X_test.index)
-    X_test_ohe_comp = pd.concat(
-        [X_test_ohe[X_test_cols_in_train], X_test_comp], axis=1)
-    X_test_ohe_comp = X_test_ohe_comp[X_train_ohe.columns]
-    return X_train_ohe, X_test_ohe_comp
+    z_cols = X_train.columns[X_train.columns.str.startswith('z')]
+    X_train_new = X_train[x_cols]
+    X_test_new = X_test[x_cols]
+    for z_col in z_cols:
+        X_train_ohe = pd.get_dummies(X_train[z_col])
+        X_test_ohe = pd.get_dummies(X_test[z_col])
+        X_test_cols_in_train = set(X_test_ohe.columns).intersection(X_train_ohe.columns)
+        X_train_cols_not_in_test = set(X_train_ohe.columns).difference(X_test_ohe.columns)
+        X_test_comp = pd.DataFrame(np.zeros((X_test.shape[0], len(X_train_cols_not_in_test))),
+            columns=X_train_cols_not_in_test, dtype=np.uint8, index=X_test.index)
+        X_test_ohe_comp = pd.concat([X_test_ohe[X_test_cols_in_train], X_test_comp], axis=1)
+        X_test_ohe_comp = X_test_ohe_comp[X_train_ohe.columns]
+        X_train_ohe.columns = list(map(lambda c: z_col + '_' + str(c), X_train_ohe.columns))
+        X_test_ohe_comp.columns = list(map(lambda c: z_col + '_' + str(c), X_test_ohe_comp.columns))
+        X_train_new = pd.concat([X_train_new, X_train_ohe], axis=1)
+        X_test_new = pd.concat([X_test_new, X_test_ohe_comp], axis=1)
+    return X_train_new, X_test_new
 
 
-def calc_b_hat(X_train, y_train, y_pred_tr, q, sig2e, sig2b, Z_non_linear, model):
-    if Z_non_linear:
+def get_D_est(qs, sig2bs):
+    D_hat = np.eye(np.sum(qs))
+    np.fill_diagonal(D_hat, np.repeat(sig2bs, qs))    
+    return D_hat
+
+
+def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls):
+    if Z_non_linear or len(qs) > 1:
         if X_train.shape[0] > 10000:
             samp = np.random.choice(X_train.shape[0], 10000, replace=False)
         else:
             samp = np.arange(X_train.shape[0])
-        W_est = model.get_layer('Z_embed').get_weights()[0]
-        gZ_train = get_dummies(X_train['z'].values[samp], q) @ W_est
-        V = sig2e * np.eye(gZ_train.shape[0]) + sig2b * np.dot(gZ_train, gZ_train.T)
+        V = sig2e * np.eye(X_train.shape[0])
+        gZ_trains = []
+        for k, sig2b in enumerate(sig2bs):
+            gZ_train = get_dummies(X_train['z' + str(k)].values[samp], qs[k])
+            if Z_non_linear:
+                W_est = model.get_layer('Z_embed' + str(k)).get_weights()[0]
+                gZ_train = gZ_train @ W_est
+            V += sig2b * np.dot(gZ_train, gZ_train.T)
+            gZ_trains.append(gZ_train)
         V_inv = np.linalg.inv(V)
-        b_hat = sig2b * gZ_train.T @ V_inv @ (y_train.values[samp] - y_pred_tr[samp])
+        gZ_train = np.hstack(gZ_trains)
+        n_cats = qs
+        if Z_non_linear:
+            n_cats = ls
+        D_hat = get_D_est(n_cats, sig2bs)
+        b_hat = D_hat @ gZ_train.T @ V_inv @ (y_train.values[samp] - y_pred_tr[samp])
     else:
         b_hat = []
-        for i in range(q):
-            i_vec = X_train['z'] == i
+        for i in range(qs[0]):
+            i_vec = X_train['z0'] == i
             n_i = i_vec.sum()
             if n_i > 0:
                 y_bar_i = y_train[i_vec].mean()
                 y_pred_i = y_pred_tr[i_vec].mean()
                 # BP(b_i) = (n_i * sig2b / (sig2a + n_i * sig2b)) * (y_bar_i - y_pred_bar_i)
-                b_i = n_i * sig2b * (y_bar_i - y_pred_i) / (sig2e + n_i * sig2b)
+                b_i = n_i * sig2bs[0] * (y_bar_i - y_pred_i) / (sig2e + n_i * sig2bs[0])
             else:
                 b_i = 0
             b_hat.append(b_i)
@@ -88,7 +108,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, q, sig2e, sig2b, Z_non_linear, model
     return b_hat
 
 
-def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False, ignore_RE=False):
+def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, deep=False, ignore_RE=False):
     if ignore_RE:
         X_train, X_test = X_train[x_cols], X_test[x_cols]
     else:
@@ -108,27 +128,38 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, q, x_cols, batch_size
     history = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs,
                         validation_split=0.1, callbacks=callbacks, verbose=0)
     y_pred = model.predict(X_test).reshape(X_test.shape[0])
-    return y_pred, (None, None), len(history.history['loss'])
+    none_sigmas = [None for _ in range(len(qs))]
+    return y_pred, (None, none_sigmas), len(history.history['loss'])
 
 
-def reg_nn_lmm(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
+def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
+    z_cols = X_train.columns[X_train.columns.str.startswith('z')].tolist()
     X_input = Input(shape=(X_train[x_cols].shape[1],))
     y_true_input = Input(shape=(1,))
-    Z_input = Input(shape=(1,), dtype=tf.int64)
+    Z_inputs = []
+    for _ in qs:
+        Z_input = Input(shape=(1,), dtype=tf.int64)
+        Z_inputs.append(Z_input)
     if deep:
         out_hidden = add_deep_layers_functional(X_input, X_train[x_cols].shape[1])
     else:
         out_hidden = add_shallow_layers_functional(X_input)
     y_pred_output = Dense(1)(out_hidden)
     if Z_non_linear:
-        l = int(q * Z_embed_dim_pct / 100.0)
-        Z_embed = Embedding(q, l, input_length=1, name='Z_embed')(Z_input)
-        Z_embed = Reshape(target_shape=(l, ))(Z_embed)
-        Z_nll_input = Z_embed
+        Z_nll_inputs = []
+        ls = []
+        for k, q in enumerate(qs):
+            l = int(q * Z_embed_dim_pct / 100.0)
+            Z_embed = Embedding(q, l, input_length=1, name='Z_embed' + str(k))(Z_inputs[k])
+            Z_embed = Reshape(target_shape=(l, ))(Z_embed)
+            Z_nll_inputs.append(Z_embed)
+            ls.append(l)
     else:
-        Z_nll_input = Z_input
-    nll = NLL(1.0, 1.0, Z_non_linear)(y_true_input, y_pred_output, Z_nll_input)
-    model = Model(inputs=[X_input, y_true_input, Z_input], outputs=nll)
+        Z_nll_inputs = Z_inputs
+        ls = None
+    sig2bs_init = np.ones_like(qs, dtype=np.float32)
+    nll = NLL(1.0, sig2bs_init, Z_non_linear)(y_true_input, y_pred_output, Z_nll_inputs)
+    model = Model(inputs=[X_input, y_true_input] + Z_inputs, outputs=nll)
 
     model.compile(optimizer='adam')
 
@@ -137,57 +168,73 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, 
         callbacks = [EarlyStoppingWithSigmasConvergence(patience=patience)]
     else:
         callbacks = [EarlyStopping(patience=patience, monitor='val_loss')]
-        X_train.sort_values(by=['z'], inplace=True)
+        X_train.sort_values(by=z_cols, inplace=True)
         y_train = y_train[X_train.index]
-    history = model.fit([X_train[x_cols], y_train, X_train['z']], None,
+    X_train_z_cols = [X_train[z_col] for z_col in z_cols]
+    X_test_z_cols = [X_test[z_col] for z_col in z_cols]
+    history = model.fit([X_train[x_cols], y_train] + X_train_z_cols, None,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
                         callbacks=callbacks, verbose=0, shuffle=False)
 
-    sig2e_est, sig2b_est = model.layers[-1].get_vars()
+    sig2e_est, sig2b_ests = model.layers[-1].get_vars()
     y_pred_tr = model.predict(
-        [X_train[x_cols], y_train, X_train['z']]).reshape(X_train.shape[0])
-    b_hat = calc_b_hat(X_train, y_train, y_pred_tr, q, sig2e_est, sig2b_est, Z_non_linear, model)
+        [X_train[x_cols], y_train] + X_train_z_cols).reshape(X_train.shape[0])
+    b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e_est, sig2b_ests, Z_non_linear, model, ls)
     dummy_y_test = np.random.normal(size=y_test.shape)
-    if Z_non_linear:
-        Z_test = get_dummies(X_test['z'], q)
-        W_est = model.get_layer('Z_embed').get_weights()[0]
-        y_pred = model.predict([X_test[x_cols], dummy_y_test, X_test['z']]).reshape(
-            X_test.shape[0]) + Z_test @ W_est @ b_hat
+    if Z_non_linear or len(qs) > 1:
+        Z_tests = []
+        for k, q in enumerate(qs):
+            Z_test = get_dummies(X_test['z' + str(k)], q)
+            if Z_non_linear:
+                W_est = model.get_layer('Z_embed' + str(k)).get_weights()[0]
+                Z_test = Z_test @ W_est
+            Z_tests.append(Z_test)
+        Z_test = np.hstack(Z_tests)
+        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+            X_test.shape[0]) + Z_test @ b_hat
     else:
-        y_pred = model.predict([X_test[x_cols], dummy_y_test, X_test['z']]).reshape(
-            X_test.shape[0]) + b_hat[X_test['z']]
-    return y_pred, (sig2e_est, sig2b_est), len(history.history['loss'])
+        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+            X_test.shape[0]) + b_hat[X_test['z0']]
+    return y_pred, (sig2e_est, list(sig2b_ests)), len(history.history['loss'])
 
 
-def reg_nn_embed(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False):
+def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, deep=False):
     embed_dim = 10
 
     X_input = Input(shape=(X_train[x_cols].shape[1],))
-    Z_input = Input(shape=(1,))
-    embed = Embedding(q, embed_dim, input_length=1)(Z_input)
-    embed = Reshape(target_shape=(embed_dim,))(embed)
-    concat = Concatenate()([X_input, embed])
+    Z_inputs = []
+    embeds = []
+    for q in qs:
+        Z_input = Input(shape=(1,))
+        embed = Embedding(q, embed_dim, input_length=1)(Z_input)
+        embed = Reshape(target_shape=(embed_dim,))(embed)
+        Z_inputs.append(Z_input)
+        embeds.append(embed)
+    concat = Concatenate()([X_input] + embeds)
     if deep:
-        out_hidden = add_deep_layers_functional(concat, X_train[x_cols].shape[1] + embed_dim)
+        out_hidden = add_deep_layers_functional(concat, X_train[x_cols].shape[1] + embed_dim * len(qs))
     else:
         out_hidden = add_shallow_layers_functional(concat)
     output = Dense(1)(out_hidden)
-    model = Model(inputs=[X_input, Z_input], outputs=output)
+    model = Model(inputs=[X_input] + Z_inputs, outputs=output)
 
     model.compile(loss='mse', optimizer='adam')
 
     callbacks = [EarlyStopping(
         monitor='val_loss', patience=epochs if patience is None else patience)]
-    history = model.fit([X_train[x_cols], X_train['z']], y_train,
+    X_train_z_cols = [X_train[z_col] for z_col in X_train.columns[X_train.columns.str.startswith('z')]]
+    X_test_z_cols = [X_test[z_col] for z_col in X_train.columns[X_train.columns.str.startswith('z')]]
+    history = model.fit([X_train[x_cols]] + X_train_z_cols, y_train,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
                         callbacks=callbacks, verbose=0)
-    y_pred = model.predict([X_test[x_cols], X_test['z']]
+    y_pred = model.predict([X_test[x_cols]] + X_test_z_cols,
                            ).reshape(X_test.shape[0])
-    return y_pred, (None, None), len(history.history['loss'])
+    none_sigmas = [None for _ in range(len(qs))]
+    return y_pred, (None, none_sigmas), len(history.history['loss'])
 
 
 def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False):
-    clusters_train, clusters_test = X_train['z'].values, X_test['z'].values
+    clusters_train, clusters_test = X_train['z0'].values, X_test['z0'].values
     X_train, X_test = X_train[x_cols].values, X_test[x_cols].values
     y_train, y_test = y_train.values, y_test.values
 
@@ -202,26 +249,26 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 
     model, b_hat, sig2e_est, n_epochs, _ = menet_fit(model, X_train, y_train, clusters_train, q, batch_size, epochs, patience, verbose=False)
     y_pred = menet_predict(model, X_test, clusters_test, q, b_hat)
-    return y_pred, (sig2e_est, None), n_epochs
+    return y_pred, (sig2e_est, [None]), n_epochs
 
 
-def reg_nn(X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, reg_type, deep, Z_non_linear, Z_embed_dim_pct):
+def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, reg_type, deep, Z_non_linear, Z_embed_dim_pct):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, n_epochs = reg_nn_ohe_or_ignore(
-            X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep)
     elif reg_type == 'lmm':
         y_pred, sigmas, n_epochs = reg_nn_lmm(
-            X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep, Z_non_linear, Z_embed_dim_pct)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep, Z_non_linear, Z_embed_dim_pct)
     elif reg_type == 'ignore':
         y_pred, sigmas, n_epochs = reg_nn_ohe_or_ignore(
-            X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep, ignore_RE=True)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep, ignore_RE=True)
     elif reg_type == 'embed':
         y_pred, sigmas, n_epochs = reg_nn_embed(
-            X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep)
     elif reg_type == 'menet':
         y_pred, sigmas, n_epochs = reg_nn_menet(
-            X_train, X_test, y_train, y_test, q, x_cols, batch, epochs, patience, deep)
+            X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience, deep)
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
