@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import pandas as pd
+from scipy.sparse import csr_matrix
 
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -71,26 +72,27 @@ def get_D_est(qs, sig2bs):
 
 def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls):
     if Z_non_linear or len(qs) > 1:
-        if X_train.shape[0] > 10000:
-            samp = np.random.choice(X_train.shape[0], 10000, replace=False)
-        else:
-            samp = np.arange(X_train.shape[0])
-        V = sig2e * np.eye(X_train.values[samp].shape[0])
         gZ_trains = []
         for k, sig2b in enumerate(sig2bs):
-            gZ_train = get_dummies(X_train['z' + str(k)].values[samp], qs[k])
+            gZ_train = get_dummies(X_train['z' + str(k)].values, qs[k])
             if Z_non_linear:
                 W_est = model.get_layer('Z_embed' + str(k)).get_weights()[0]
                 gZ_train = gZ_train @ W_est
-            V += sig2b * np.dot(gZ_train, gZ_train.T)
             gZ_trains.append(gZ_train)
-        V_inv = np.linalg.inv(V)
-        gZ_train = np.hstack(gZ_trains)
-        n_cats = qs
         if Z_non_linear:
+            if X_train.shape[0] > 10000:
+                samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+            else:
+                samp = np.arange(X_train.shape[0])
+            gZ_train = np.hstack(gZ_trains)[samp]
             n_cats = ls
-        D_hat = get_D_est(n_cats, sig2bs)
-        b_hat = D_hat @ gZ_train.T @ V_inv @ (y_train.values[samp] - y_pred_tr[samp])
+        else:
+            gZ_train = csr_matrix(np.hstack(gZ_trains))
+            n_cats = qs
+        D_inv = get_D_est(n_cats, 1 / sig2bs)
+        A = gZ_train.T @ gZ_train / sig2e + D_inv
+        b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values - y_pred_tr)
+        b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
     else:
         b_hat = []
         for i in range(qs[0]):
