@@ -7,16 +7,18 @@ import tensorflow.keras.backend as K
 class NLL(Layer):
     """Negative Log Likelihood Loss Layer"""
 
-    def __init__(self, sig2e, sig2bs, Z_non_linear=False):
+    def __init__(self, mode, sig2e, sig2bs, rhos = [], est_cors = [], Z_non_linear=False):
         super(NLL, self).__init__(dynamic=False)
         self.sig2e = tf.Variable(
             sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
         self.sig2bs = tf.Variable(
             sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
-        # for k, sig2b in enumerate(sig2bs):
-        #     locals()['sig2b' + str(k)] = tf.Variable(
-        #         sig2b, name='sig2b' + str(k), constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
         self.Z_non_linear = Z_non_linear
+        self.mode = mode
+        if self.mode == 'slopes':
+            self.rhos = tf.Variable(
+                rhos, name='rhos', constraint=lambda x: tf.clip_by_value(x, -1.0, 1.0))
+            self.est_cors = est_cors
 
     def get_vars(self):
         return self.sig2e.numpy(), self.sig2bs.numpy()

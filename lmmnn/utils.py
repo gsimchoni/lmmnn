@@ -11,7 +11,7 @@ NNResult = namedtuple('NNResult', ['mse', 'sigmas', 'rhos', 'n_epochs', 'time'])
 
 NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
                                  'N', 'qs', 'sig2e', 'sig2bs', 'rhos', 'k', 'deep', 'batch', 'epochs', 'patience',
-                                 'Z_non_linear', 'Z_embed_dim_pct', 'mode'])
+                                 'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors'])
 
 def get_dummies(vec, vec_max):
     vec_size = vec.size

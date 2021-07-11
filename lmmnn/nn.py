@@ -134,13 +134,18 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     return y_pred, (None, none_sigmas), [None], len(history.history['loss'])
 
 
-def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode,
+def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, lmm_mode, n_sig2bs, est_cors,
         deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
     z_cols = X_train.columns[X_train.columns.str.startswith('z')].tolist()
     X_input = Input(shape=(X_train[x_cols].shape[1],))
     y_true_input = Input(shape=(1,))
     Z_inputs = []
-    for _ in qs:
+    n_RE_inputs = len(qs)
+    n_sig2bs_init = len(qs)
+    if lmm_mode == 'slopes':
+        n_RE_inputs = 2
+        n_sig2bs_init = n_sig2bs
+    for _ in range(n_RE_inputs):
         Z_input = Input(shape=(1,), dtype=tf.int64)
         Z_inputs.append(Z_input)
     if deep:
@@ -148,7 +153,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     else:
         out_hidden = add_shallow_layers_functional(X_input)
     y_pred_output = Dense(1)(out_hidden)
-    if Z_non_linear:
+    if Z_non_linear and lmm_mode == 'intercepts':
         Z_nll_inputs = []
         ls = []
         for k, q in enumerate(qs):
@@ -160,8 +165,9 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     else:
         Z_nll_inputs = Z_inputs
         ls = None
-    sig2bs_init = np.ones_like(qs, dtype=np.float32)
-    nll = NLL(1.0, sig2bs_init, Z_non_linear)(y_true_input, y_pred_output, Z_nll_inputs)
+    sig2bs_init = np.ones(n_sig2bs_init, dtype=np.float32)
+    rhos_init = np.zeros(len(est_cors), dtype=np.float32)
+    nll = NLL(lmm_mode, 1.0, sig2bs_init, rhos_init, est_cors, Z_non_linear)(y_true_input, y_pred_output, Z_nll_inputs)
     model = Model(inputs=[X_input, y_true_input] + Z_inputs, outputs=nll)
 
     model.compile(optimizer='adam')
@@ -251,19 +257,22 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 
     model.compile(loss='mse', optimizer='adam')
 
-    model, b_hat, sig2e_est, n_epochs, _ = menet_fit(model, X_train, y_train, clusters_train, q, batch_size, epochs, patience, verbose=False)
+    model, b_hat, sig2e_est, n_epochs, _ = menet_fit(model, X_train, y_train, clusters_train, q, batch_size, epochs,
+                                                patience, verbose=False)
     y_pred = menet_predict(model, X_test, clusters_test, q, b_hat)
     return y_pred, (sig2e_est, [None]), [None], n_epochs
 
 
-def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, reg_type, deep, Z_non_linear, Z_embed_dim_pct, mode):
+def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, reg_type, deep,
+        Z_non_linear, Z_embed_dim_pct, lmm_mode, n_sig2bs, est_cors):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep)
     elif reg_type == 'lmm':
         y_pred, sigmas, rhos, n_epochs = reg_nn_lmm(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, deep, Z_non_linear, Z_embed_dim_pct)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, lmm_mode,
+                n_sig2bs, est_cors, deep, Z_non_linear, Z_embed_dim_pct)
     elif reg_type == 'ignore':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep, ignore_RE=True)
