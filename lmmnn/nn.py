@@ -131,10 +131,11 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
                         validation_split=0.1, callbacks=callbacks, verbose=0)
     y_pred = model.predict(X_test).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(len(qs))]
-    return y_pred, (None, none_sigmas), len(history.history['loss'])
+    return y_pred, (None, none_sigmas), [None], len(history.history['loss'])
 
 
-def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
+def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode,
+        deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
     z_cols = X_train.columns[X_train.columns.str.startswith('z')].tolist()
     X_input = Input(shape=(X_train[x_cols].shape[1],))
     y_true_input = Input(shape=(1,))
@@ -197,7 +198,8 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     else:
         y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
             X_test.shape[0]) + b_hat[X_test['z0']]
-    return y_pred, (sig2e_est, list(sig2b_ests)), len(history.history['loss'])
+    rho_ests = [None]
+    return y_pred, (sig2e_est, list(sig2b_ests)), rho_ests, len(history.history['loss'])
 
 
 def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, deep=False):
@@ -232,7 +234,7 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
     y_pred = model.predict([X_test[x_cols]] + X_test_z_cols,
                            ).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(len(qs))]
-    return y_pred, (None, none_sigmas), len(history.history['loss'])
+    return y_pred, (None, none_sigmas), [None], len(history.history['loss'])
 
 
 def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, deep=False):
@@ -251,28 +253,28 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 
     model, b_hat, sig2e_est, n_epochs, _ = menet_fit(model, X_train, y_train, clusters_train, q, batch_size, epochs, patience, verbose=False)
     y_pred = menet_predict(model, X_test, clusters_test, q, b_hat)
-    return y_pred, (sig2e_est, [None]), n_epochs
+    return y_pred, (sig2e_est, [None]), [None], n_epochs
 
 
-def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, reg_type, deep, Z_non_linear, Z_embed_dim_pct):
+def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, reg_type, deep, Z_non_linear, Z_embed_dim_pct, mode):
     start = time.time()
     if reg_type == 'ohe':
-        y_pred, sigmas, n_epochs = reg_nn_ohe_or_ignore(
+        y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep)
     elif reg_type == 'lmm':
-        y_pred, sigmas, n_epochs = reg_nn_lmm(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep, Z_non_linear, Z_embed_dim_pct)
+        y_pred, sigmas, rhos, n_epochs = reg_nn_lmm(
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, deep, Z_non_linear, Z_embed_dim_pct)
     elif reg_type == 'ignore':
-        y_pred, sigmas, n_epochs = reg_nn_ohe_or_ignore(
+        y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep, ignore_RE=True)
     elif reg_type == 'embed':
-        y_pred, sigmas, n_epochs = reg_nn_embed(
+        y_pred, sigmas, rhos, n_epochs = reg_nn_embed(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, deep)
     elif reg_type == 'menet':
-        y_pred, sigmas, n_epochs = reg_nn_menet(
+        y_pred, sigmas, rhos, n_epochs = reg_nn_menet(
             X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience, deep)
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
     mse = np.mean((y_pred - y_test)**2)
-    return NNResult(mse, sigmas, n_epochs, end - start)
+    return NNResult(mse, sigmas, rhos, n_epochs, end - start)
