@@ -75,13 +75,13 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
         Z_idx = np.repeat(range(qs[0]), ns)
         max_period = np.arange(ns.max())
         t = np.concatenate([max_period[:k] for k in ns]) / max_period[-1]
-        y += t + t ** 2 # fixed part
         cov_mat = get_cov_mat(sig2bs, rhos, params['estimated_cors'])
         bs = np.random.multivariate_normal(np.zeros(len(sig2bs)), cov_mat, qs[0])
         b = bs.reshape((qs[0] * len(sig2bs),), order = 'F')
         Z0 = sparse.csr_matrix(get_dummies(Z_idx, qs[0]))
         Z_list = [Z0]
         for k in range(1, len(sig2bs)):
+            y += t ** k # fixed part t + t^2 + t^3 + ...
             Z_list.append(sparse.spdiags(t ** k, 0, N, N) @ Z0)
         Zb = sparse.hstack(Z_list) @ b
         y = y + Zb
