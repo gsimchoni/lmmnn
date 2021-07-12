@@ -19,6 +19,22 @@ def get_dummies(vec, vec_max):
     Z[np.arange(vec_size), vec] = 1
     return Z
 
+def get_cov_mat(sig2bs, rhos, est_cors):
+    cov_mat = np.zeros((len(sig2bs), len(sig2bs)))
+    for k in range(len(sig2bs)):
+        for j in range(len(sig2bs)):
+            if k == j:
+                cov_mat[k, j] = sig2bs[k]
+            else:
+                rho_symbol = ''.join(map(str, sorted([k, j])))
+                if rho_symbol in est_cors:
+                    rho = rhos[est_cors.index(rho_symbol)]
+                else:
+                    rho = 0
+                cov_mat[k, j] = rho * np.sqrt(sig2bs[k]) * np.sqrt(sig2bs[j])
+    return cov_mat
+
+
 def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     n_fixed_effects = params['n_fixed_effects']
     X = np.random.uniform(-1, 1, N * n_fixed_effects).reshape((N, n_fixed_effects))
@@ -60,25 +76,13 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
         max_period = np.arange(ns.max())
         t = np.concatenate([max_period[:k] for k in ns]) / max_period[-1]
         y += t + t ** 2 # fixed part
-        cov_mat = np.zeros((len(sig2bs), len(sig2bs)))
-        for k, sig2b_k in enumerate(sig2bs):
-            for j, sig2b_j in enumerate(sig2bs):
-                if k == j:
-                    cov_mat[k, j] = sig2bs[k]
-                else:
-                    rho_symbol = ''.join(map(str, sorted([k, j])))
-                    if rho_symbol in params['estimated_cors']:
-                        rho = rhos[params['estimated_cors'].index(rho_symbol)]
-                    else:
-                        rho = 0
-                    cov_mat[k, j] = rho * np.sqrt(sig2bs[k]) * np.sqrt(sig2bs[j])
+        cov_mat = get_cov_mat(sig2bs, rhos, params['estimated_cors'])
         bs = np.random.multivariate_normal(np.zeros(len(sig2bs)), cov_mat, qs[0])
         b = bs.reshape((qs[0] * len(sig2bs),), order = 'F')
         Z0 = sparse.csr_matrix(get_dummies(Z_idx, qs[0]))
         Z_list = [Z0]
-        poly = 1
         for k in range(1, len(sig2bs)):
-            Z_list.append(sparse.spdiags(t ** poly, 0, N, N) @ Z0)
+            Z_list.append(sparse.spdiags(t ** k, 0, N, N) @ Z0)
         Zb = sparse.hstack(Z_list) @ b
         y = y + Zb
         df['t'] = t

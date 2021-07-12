@@ -24,32 +24,31 @@ class Count:
 
 
 def iterate_reg_types(counter, res_df, out_file, nn_in):
-    # if all(map(lambda q: q <= 10000, nn_in.qs)):
-    #     res = run_reg_nn(nn_in, 'ohe')
-    #     ohe_res = summarize_sim(nn_in, res, 'ohe')
-    # else:
-    #     ohe_res = None
-    #     logger.warning(
-    #         'OHE is unreasonable for a categorical variable of over 10K levels.')
-    # logger.debug('  Finished OHE.')
-    # res = run_reg_nn(nn_in, 'ignore')
-    # ig_res = summarize_sim(nn_in, res, 'ignore')
-    # logger.debug('  Finished Ignore.')
-    # res = run_reg_nn(nn_in, 'embed')
-    # embed_res = summarize_sim(nn_in, res, 'embed')
-    # logger.debug('  Finished Embedding.')
+    if all(map(lambda q: q <= 10000, nn_in.qs)):
+        res = run_reg_nn(nn_in, 'ohe')
+        ohe_res = summarize_sim(nn_in, res, 'ohe')
+    else:
+        ohe_res = None
+        logger.warning(
+            'OHE is unreasonable for a categorical variable of over 10K levels.')
+    logger.debug('  Finished OHE.')
+    res = run_reg_nn(nn_in, 'ignore')
+    ig_res = summarize_sim(nn_in, res, 'ignore')
+    logger.debug('  Finished Ignore.')
+    res = run_reg_nn(nn_in, 'embed')
+    embed_res = summarize_sim(nn_in, res, 'embed')
+    logger.debug('  Finished Embedding.')
     res = run_reg_nn(nn_in, 'lmm')
     lmm_res = summarize_sim(nn_in, res, 'lmm')
     logger.debug('  Finished LMM.')
-    if len(nn_in.qs) == 1:
-        res = run_reg_nn(nn_in, 'menet')
-        me_res = summarize_sim(nn_in, res, 'menet')
-        logger.debug('  Finished MeNet.')
     res_df.loc[next(counter)] = ohe_res
     res_df.loc[next(counter)] = lmm_res
     res_df.loc[next(counter)] = ig_res
     res_df.loc[next(counter)] = embed_res
-    if len(nn_in.qs) == 1:
+    if len(nn_in.qs) == 1 and nn_in.mode == 'intercepts':
+        res = run_reg_nn(nn_in, 'menet')
+        me_res = summarize_sim(nn_in, res, 'menet')
+        logger.debug('  Finished MeNet.')
         res_df.loc[next(counter)] = me_res
     res_df.to_csv(out_file)
 
