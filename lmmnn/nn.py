@@ -71,8 +71,8 @@ def get_D_est(qs, sig2bs):
     return D_hat
 
 
-def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls, lmm_mode, rhos, est_cors):
-    if lmm_mode == 'intercepts':
+def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls, mode, rhos, est_cors):
+    if mode == 'intercepts':
         if Z_non_linear or len(qs) > 1:
             gZ_trains = []
             for k in range(len(sig2bs)):
@@ -109,7 +109,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
                     b_i = 0
                 b_hat.append(b_i)
             b_hat = np.array(b_hat)
-    elif lmm_mode == 'slopes':
+    elif mode == 'slopes':
         q = qs[0]
         Z0 = sparse.csr_matrix(get_dummies(X_train['z0'], q))
         t = X_train['t'].values
@@ -124,6 +124,37 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
         A = gZ_train.T @ gZ_train / sig2e + D_inv
         b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values - y_pred_tr)
         b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
+    elif mode == 'glmm':
+        nGQ = 10
+        x_ks, w_ks = np.polynomial.hermite.hermgauss(nGQ)
+        a = np.unique(X_train['z0'])
+        b_hat_numerators = []
+        b_hat_denominators = []
+        q = qs[0]
+        for i in range(q):
+            if i in a:
+                i_vec = X_train['z0'] == i
+                y_i = y_train.values[i_vec]
+                f_i = y_pred_tr[i_vec]
+                yf = np.dot(y_i, f_i)
+                k_sum_num = 0
+                k_sum_den = 0
+                for k in range(nGQ):
+                    sqrt2_sigb_xk = np.sqrt(2) * np.sqrt(sig2bs[0]) * x_ks[k]
+                    y_sum_x = y_i.sum() * sqrt2_sigb_xk
+                    log_gamma_sum = np.sum(np.log(1 + np.exp(f_i + sqrt2_sigb_xk)))
+                    k_exp = np.exp(yf + y_sum_x - log_gamma_sum) * w_ks[k] / np.sqrt(np.pi)
+                    k_sum_num = k_sum_num + sqrt2_sigb_xk * k_exp
+                    k_sum_den = k_sum_den + k_exp
+                b_hat_numerators.append(k_sum_num)
+                if k_sum_den == 0.0:
+                    b_hat_denominators.append(1)
+                else:
+                    b_hat_denominators.append(k_sum_den)
+            else:
+                b_hat_numerators.append(0)
+                b_hat_denominators.append(1)
+        b_hat = np.array(b_hat_numerators) / np.array(b_hat_denominators)
     return b_hat
 
 
@@ -163,7 +194,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
     X_input = Input(shape=(X_train[x_cols].shape[1],))
     y_true_input = Input(shape=(1,))
-    if mode == 'intercepts':
+    if mode == 'intercepts' or mode == 'glmm':
         z_cols = X_train.columns[X_train.columns.str.startswith('z')].tolist()
         Z_inputs = []
         n_RE_inputs = len(qs)
@@ -184,7 +215,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     else:
         out_hidden = add_shallow_layers_functional(X_input)
     y_pred_output = Dense(1)(out_hidden)
-    if Z_non_linear and mode == 'intercepts':
+    if Z_non_linear and (mode == 'intercepts' or mode == 'glmm'):
         Z_nll_inputs = []
         ls = []
         for k, q in enumerate(qs):
@@ -222,7 +253,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e_est, sig2b_ests,
                 Z_non_linear, model, ls, mode, rho_ests, est_cors)
     dummy_y_test = np.random.normal(size=y_test.shape)
-    if mode == 'intercepts':
+    if mode == 'intercepts' or mode == 'glmm':
         if Z_non_linear or len(qs) > 1:
             Z_tests = []
             for k, q in enumerate(qs):

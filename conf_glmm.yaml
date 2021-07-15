@@ -15,7 +15,7 @@ q_list:
 rho_list: []
 N_list:
   - 100000
-n_iter: 5
+n_iter: 1
 n_per_cat: 3
 fixed_intercept: 1
 n_fixed_effects: 10

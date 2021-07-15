@@ -40,7 +40,6 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     X = np.random.uniform(-1, 1, N * n_fixed_effects).reshape((N, n_fixed_effects))
     betas = np.ones(n_fixed_effects)
     Xbeta = params['fixed_intercept'] + X @ betas
-    e = np.random.normal(0, np.sqrt(sig2e), N)
     if params['X_non_linear']:
         fX = Xbeta * np.cos(Xbeta) + 2 * X[:, 0] * X[:, 1]
     else:
@@ -48,7 +47,11 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     df = pd.DataFrame(X)
     x_cols = ['X' + str(i) for i in range(n_fixed_effects)]
     df.columns = x_cols
-    y = fX + e
+    if mode == 'glmm':
+        y = fX
+    else:
+        e = np.random.normal(0, np.sqrt(sig2e), N)
+        y = fX + e
     if mode == 'intercepts' or mode == 'glmm':
         for k, q in enumerate(qs):
             fs = np.random.poisson(params['n_per_cat'], q) + 1
