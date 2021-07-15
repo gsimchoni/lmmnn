@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 SimResult = namedtuple('SimResult',
                        ['N', 'sig2e', 'sig2bs', 'qs', 'deep', 'iter_id', 'exp_type', 'mse', 'sig2e_est', 'sig2b_ests', 'n_epochs', 'time'])
 
-NNResult = namedtuple('NNResult', ['mse', 'sigmas', 'rhos', 'n_epochs', 'time'])
+NNResult = namedtuple('NNResult', ['metric', 'sigmas', 'rhos', 'n_epochs', 'time'])
 
 NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
                                  'N', 'qs', 'sig2e', 'sig2bs', 'rhos', 'k', 'deep', 'batch', 'epochs', 'patience',
@@ -49,7 +49,7 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     x_cols = ['X' + str(i) for i in range(n_fixed_effects)]
     df.columns = x_cols
     y = fX + e
-    if mode == 'intercepts':
+    if mode == 'intercepts' or mode == 'glmm':
         for k, q in enumerate(qs):
             fs = np.random.poisson(params['n_per_cat'], q) + 1
             fs_sum = fs.sum()
@@ -88,6 +88,9 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
         df['t'] = t
         df['z0'] = Z_idx
         x_cols.append('t')
+    if mode == 'glmm':
+        p = np.exp(y)/(1 + np.exp(y))
+        y = np.random.binomial(1, p, size=N)
     df['y'] = y
     X_train, X_test, y_train, y_test = train_test_split(
         df.drop('y', axis=1), df['y'], test_size=0.2)
