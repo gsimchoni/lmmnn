@@ -125,7 +125,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
         b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values - y_pred_tr)
         b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
     elif mode == 'glmm':
-        nGQ = 10
+        nGQ = 5
         x_ks, w_ks = np.polynomial.hermite.hermgauss(nGQ)
         a = np.unique(X_train['z0'])
         b_hat_numerators = []
@@ -268,6 +268,8 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         else:
             y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0]) + b_hat[X_test['z0']]
+        if mode == 'glmm':
+            y_pred = np.exp(y_pred)/(1 + np.exp(y_pred))
     elif mode == 'slopes':
         q = qs[0]
         Z0 = sparse.csr_matrix(get_dummies(X_test['z0'], q))

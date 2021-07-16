@@ -21,7 +21,7 @@ class NLL(Layer):
                 rhos, name='rhos', constraint=lambda x: tf.clip_by_value(x, -1.0, 1.0))
             self.est_cors = est_cors
         elif self.mode == 'glmm':
-            self.nGQ = 10
+            self.nGQ = 5
             self.x_ks, self.w_ks = np.polynomial.hermite.hermgauss(self.nGQ)
 
     def get_vars(self):
