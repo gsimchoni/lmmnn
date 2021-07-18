@@ -7,15 +7,17 @@ import tensorflow.keras.backend as K
 class NLL(Layer):
     """Negative Log Likelihood Loss Layer"""
 
-    def __init__(self, mode, sig2e, sig2bs, rhos = [], est_cors = [], Z_non_linear=False):
+    def __init__(self, mode, sig2e, sig2bs, rhos = [], est_cors = [], Z_non_linear=False, coords=None):
         super(NLL, self).__init__(dynamic=False)
         self.sig2bs = tf.Variable(
             sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
         self.Z_non_linear = Z_non_linear
         self.mode = mode
-        if self.mode == 'intercepts' or self.mode == 'slopes':
+        if self.mode in ['intercepts', 'slopes', 'spatial']:
             self.sig2e = tf.Variable(
                 sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
+            if self.mode == 'spatial':
+                self.coords = coords
         if self.mode == 'slopes':
             self.rhos = tf.Variable(
                 rhos, name='rhos', constraint=lambda x: tf.clip_by_value(x, -1.0, 1.0))
@@ -25,7 +27,7 @@ class NLL(Layer):
             self.x_ks, self.w_ks = np.polynomial.hermite.hermgauss(self.nGQ)
 
     def get_vars(self):
-        if self.mode == 'intercepts':
+        if self.mode in ['intercepts', 'spatial']:
             return self.sig2e.numpy(), self.sig2bs.numpy(), []
         if self.mode == 'glmm':
             return None, self.sig2bs.numpy(), []
@@ -41,6 +43,13 @@ class NLL(Layer):
         indices = self.get_indices(N, Z_idx)
         return tf.sparse.to_dense(tf.sparse.SparseTensor(indices, tf.ones(N), (N, tf.reduce_max(Z_idx) + 1)))
 
+    def getD(self, Z_idx):
+        coords = tf.cast(self.coords[:(tf.reduce_max(Z_idx) + 1)], tf.float32)
+        r = tf.reduce_sum(coords * coords, axis=1)
+        M = r - 2 * K.dot(coords, tf.transpose(coords)) + tf.transpose(r)
+        D = self.sig2bs[0] * tf.math.exp(-M / (2 * self.sig2e))
+        return D
+    
     def custom_loss_lm(self, y_true, y_pred, Z_idxs):
         N = K.shape(y_true)[0]
         V = self.sig2e * tf.eye(N)
@@ -67,6 +76,10 @@ class NLL(Layer):
                         else:
                             continue
                     V += sig * K.dot(Z_list[j], K.transpose(Z_list[k]))
+        elif self.mode == 'spatial':
+            D = self.getD(Z_idxs[0])
+            Z = self.getZ(N, Z_idxs[0])
+            V += self.sig2bs[0] * K.dot(Z, K.dot(D, K.transpose(Z)))
         V_inv = tf.linalg.inv(V)
         loss2 = K.dot(K.transpose(y_true - y_pred),
                       K.dot(V_inv, y_true - y_pred))

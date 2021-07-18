@@ -2,6 +2,7 @@ import time
 import numpy as np
 import pandas as pd
 from scipy import sparse
+from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import roc_auc_score
 
 import tensorflow as tf
@@ -71,7 +72,7 @@ def get_D_est(qs, sig2bs):
     return D_hat
 
 
-def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls, mode, rhos, est_cors):
+def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls, mode, rhos, est_cors, coords):
     if mode == 'intercepts':
         if Z_non_linear or len(qs) > 1:
             gZ_trains = []
@@ -155,6 +156,15 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
                 b_hat_numerators.append(0)
                 b_hat_denominators.append(1)
         b_hat = np.array(b_hat_numerators) / np.array(b_hat_denominators)
+    elif mode == 'spatial':
+        gZ_train = get_dummies(X_train['z0'].values, qs[0])
+        gZ_train = sparse.csr_matrix(gZ_train)
+        M = squareform(pdist(coords)) ** 2
+        D = sig2bs[0] * np.exp(-M / (2 * sig2e))
+        D_inv = np.linalg.inv(D)
+        A = gZ_train.T @ gZ_train / sig2e + D_inv
+        b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values - y_pred_tr)
+        b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
     return b_hat
 
 
@@ -190,11 +200,14 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     return y_pred, (None, none_sigmas), none_rhos, len(history.history['loss'])
 
 
-def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode, n_sig2bs, est_cors,
+def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode, n_sig2bs, est_cors, coords,
         deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
+    if mode == 'spatial':
+        x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
+    coords_tf = tf.constant(coords)
     X_input = Input(shape=(X_train[x_cols].shape[1],))
     y_true_input = Input(shape=(1,))
-    if mode == 'intercepts' or mode == 'glmm':
+    if mode in ['intercepts', 'glmm', 'spatial']:
         z_cols = X_train.columns[X_train.columns.str.startswith('z')].tolist()
         Z_inputs = []
         n_RE_inputs = len(qs)
@@ -215,7 +228,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     else:
         out_hidden = add_shallow_layers_functional(X_input)
     y_pred_output = Dense(1)(out_hidden)
-    if Z_non_linear and (mode == 'intercepts' or mode == 'glmm'):
+    if Z_non_linear and (mode in ['intercepts', 'glmm']):
         Z_nll_inputs = []
         ls = []
         for k, q in enumerate(qs):
@@ -229,7 +242,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         ls = None
     sig2bs_init = np.ones(n_sig2bs_init, dtype=np.float32)
     rhos_init = np.zeros(len(est_cors), dtype=np.float32)
-    nll = NLL(mode, 1.0, sig2bs_init, rhos_init, est_cors, Z_non_linear)(y_true_input, y_pred_output, Z_nll_inputs)
+    nll = NLL(mode, 1.0, sig2bs_init, rhos_init, est_cors, Z_non_linear, coords_tf)(y_true_input, y_pred_output, Z_nll_inputs)
     model = Model(inputs=[X_input, y_true_input] + Z_inputs, outputs=nll)
 
     model.compile(optimizer='adam')
@@ -245,15 +258,15 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     X_test_z_cols = [X_test[z_col] for z_col in z_cols]
     history = model.fit([X_train[x_cols], y_train] + X_train_z_cols, None,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
-                        callbacks=callbacks, verbose=0, shuffle=False)
+                        callbacks=callbacks, verbose=1, shuffle=False)
 
     sig2e_est, sig2b_ests, rho_ests = model.layers[-1].get_vars()
     y_pred_tr = model.predict(
         [X_train[x_cols], y_train] + X_train_z_cols).reshape(X_train.shape[0])
     b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e_est, sig2b_ests,
-                Z_non_linear, model, ls, mode, rho_ests, est_cors)
+                Z_non_linear, model, ls, mode, rho_ests, est_cors, coords)
     dummy_y_test = np.random.normal(size=y_test.shape)
-    if mode == 'intercepts' or mode == 'glmm':
+    if mode in ['intercepts', 'glmm', 'spatial']:
         if Z_non_linear or len(qs) > 1:
             Z_tests = []
             for k, q in enumerate(qs):
@@ -349,7 +362,7 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 
 
 def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, reg_type, deep,
-        Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors):
+        Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, coords):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
@@ -357,7 +370,7 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience
     elif reg_type == 'lmm':
         y_pred, sigmas, rhos, n_epochs = reg_nn_lmm(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode,
-                n_sig2bs, est_cors, deep, Z_non_linear, Z_embed_dim_pct)
+                n_sig2bs, est_cors, coords, deep, Z_non_linear, Z_embed_dim_pct)
     elif reg_type == 'ignore':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep, ignore_RE=True)
