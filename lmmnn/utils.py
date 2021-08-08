@@ -3,6 +3,7 @@ import numpy as np
 from collections import namedtuple
 from scipy import sparse
 from sklearn.model_selection import train_test_split
+from scipy.spatial.distance import pdist, squareform
 
 SimResult = namedtuple('SimResult',
                        ['N', 'sig2e', 'sig2bs', 'qs', 'deep', 'iter_id', 'exp_type', 'mse', 'sig2e_est', 'sig2b_ests', 'n_epochs', 'time'])
@@ -11,7 +12,7 @@ NNResult = namedtuple('NNResult', ['metric', 'sigmas', 'rhos', 'n_epochs', 'time
 
 NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
                                  'N', 'qs', 'sig2e', 'sig2bs', 'rhos', 'k', 'deep', 'batch', 'epochs', 'patience',
-                                 'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors'])
+                                 'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors', 'coords'])
 
 def get_dummies(vec, vec_max):
     vec_size = vec.size
@@ -40,6 +41,7 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     X = np.random.uniform(-1, 1, N * n_fixed_effects).reshape((N, n_fixed_effects))
     betas = np.ones(n_fixed_effects)
     Xbeta = params['fixed_intercept'] + X @ betas
+    M = None
     if params['X_non_linear']:
         fX = Xbeta * np.cos(Xbeta) + 2 * X[:, 0] * X[:, 1]
     else:
@@ -70,7 +72,7 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
                 gZb = np.repeat(b, ns)
             y = y + gZb
             df['z' + str(k)] = Z_idx
-    elif mode == 'slopes': # len(qs) should b1 1
+    elif mode == 'slopes': # len(qs) should be 1
         fs = np.random.poisson(params['n_per_cat'], qs[0]) + 1
         fs_sum = fs.sum()
         ps = fs/fs_sum
@@ -91,10 +93,28 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
         df['t'] = t
         df['z0'] = Z_idx
         x_cols.append('t')
+    elif mode == 'spatial': # len(qs) should be 1
+        coords = np.stack([np.random.uniform(-10, 10, qs[0]), np.random.uniform(-10, 10, qs[0])], axis=1)
+        M = squareform(pdist(coords)) ** 2
+        D = sig2bs[0] * np.exp(-M / (2 * sig2bs[1]))
+        b = np.random.multivariate_normal(np.zeros(qs[0]), D, 1)[0]
+        fs = np.random.poisson(params['n_per_cat'], qs[0]) + 1
+        fs_sum = fs.sum()
+        ps = fs/fs_sum
+        ns = np.random.multinomial(N, ps)
+        Z_idx = np.repeat(range(qs[0]), ns)
+        gZb = np.repeat(b, ns)
+        df['z0'] = Z_idx
+        y = y + gZb
+        coords_df = pd.DataFrame(coords[Z_idx])
+        co_cols = ['D1', 'D2']
+        coords_df.columns = co_cols
+        df = pd.concat([df, coords_df], axis=1)
+        x_cols.extend(co_cols)
     if mode == 'glmm':
         p = np.exp(y)/(1 + np.exp(y))
         y = np.random.binomial(1, p, size=N)
     df['y'] = y
     X_train, X_test, y_train, y_test = train_test_split(
         df.drop('y', axis=1), df['y'], test_size=0.2)
-    return X_train, X_test, y_train, y_test, x_cols
+    return X_train, X_test, y_train, y_test, x_cols, M

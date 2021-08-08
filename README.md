@@ -9,7 +9,7 @@ For full details see the paper and lmmnn_neurips2021_additional_material.pdf.
 For running the simulations use the `simulate.py` file, like so:
 
 ```
-python simulate.py --conf conf.yaml --out res.csv
+python simulate.py --conf conf_files/conf_random_intercepts.yaml --out res.csv
 ```
 
 The `--conf` attribute accepts a yaml file such as `conf.yaml` which you can change.
