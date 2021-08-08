@@ -93,7 +93,7 @@ def simulation(out_file, params):
         metric = 'auc'
     elif mode == 'spatial':
         assert n_categoricals == 1
-        assert n_sig2bs == n_categoricals
+        assert n_sig2bs == 2
         rhos_names =  []
         rhos_est_names =  []
         metric = 'mse'

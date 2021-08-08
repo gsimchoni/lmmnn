@@ -134,9 +134,9 @@ p1 <- res %>%
   ggplot(aes(exp_type, MSE, fill = factor(ifelse(exp_type == "LMMNN", "highlighted", "normal")))) +
   geom_errorbar(aes(x = exp_type, ymin = MSE - se, ymax = MSE + se), width = 0.25) +
   geom_bar(stat = "identity") +
-  coord_cartesian(ylim = c(0.8, 0.9)) +
+  coord_cartesian(ylim = c(0.8, 0.83)) +
   scale_fill_manual(values=c("red", "grey50")) +
-  scale_y_continuous(breaks = c(0.8, 0.85, 0.9)) +
+  scale_y_continuous(breaks = c(0.8, 0.81, 0.82, 0.83)) +
   labs(x = NULL, y = NULL, title = "UKB PA") +
   guides(fill = FALSE) +
   theme_bw() +

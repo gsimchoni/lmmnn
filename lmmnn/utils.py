@@ -41,7 +41,7 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     X = np.random.uniform(-1, 1, N * n_fixed_effects).reshape((N, n_fixed_effects))
     betas = np.ones(n_fixed_effects)
     Xbeta = params['fixed_intercept'] + X @ betas
-    coords = None
+    M = None
     if params['X_non_linear']:
         fX = Xbeta * np.cos(Xbeta) + 2 * X[:, 0] * X[:, 1]
     else:
@@ -94,9 +94,9 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
         df['z0'] = Z_idx
         x_cols.append('t')
     elif mode == 'spatial': # len(qs) should be 1
-        coords = np.stack([np.random.uniform(0, 1, qs[0]), np.random.uniform(0, 1, qs[0])], axis=1)
+        coords = np.stack([np.random.uniform(-10, 10, qs[0]), np.random.uniform(-10, 10, qs[0])], axis=1)
         M = squareform(pdist(coords)) ** 2
-        D = sig2bs[0] * np.exp(-M / (2 * sig2e))
+        D = sig2bs[0] * np.exp(-M / (2 * sig2bs[1]))
         b = np.random.multivariate_normal(np.zeros(qs[0]), D, 1)[0]
         fs = np.random.poisson(params['n_per_cat'], qs[0]) + 1
         fs_sum = fs.sum()
@@ -117,4 +117,4 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     df['y'] = y
     X_train, X_test, y_train, y_test = train_test_split(
         df.drop('y', axis=1), df['y'], test_size=0.2)
-    return X_train, X_test, y_train, y_test, x_cols, coords
+    return X_train, X_test, y_train, y_test, x_cols, M

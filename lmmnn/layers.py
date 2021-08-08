@@ -1,3 +1,4 @@
+from os import name
 from tensorflow.keras.layers import Layer
 import tensorflow as tf
 import numpy as np
@@ -33,21 +34,47 @@ class NLL(Layer):
             return None, self.sig2bs.numpy(), []
         return self.sig2e.numpy(), self.sig2bs.numpy(), self.rhos.numpy()
 
-    def get_indices(self, N, Z_idx):
+    def get_table(self, Z_idx):
+        Z_unique, _ = tf.unique(Z_idx)
+        Z_mapto = tf.range(tf.shape(Z_unique)[0], dtype=tf.int64)
+        table = tf.lookup.StaticVocabularyTable(
+                tf.lookup.KeyValueTensorInitializer(
+                    Z_unique,
+                    Z_mapto,
+                    key_dtype=tf.int64,
+                    value_dtype=tf.int64,
+                ),
+                num_oov_buckets=1,
+            )
+        return table
+    
+    def get_indices(self, N, Z_idx, min_Z):
+        return tf.stack([tf.range(N, dtype=tf.int64), Z_idx - min_Z], axis=1)
+
+    def get_indices_v1(self, N, Z_idx):
         return tf.stack([tf.range(N, dtype=tf.int64), Z_idx], axis=1)
 
-    def getZ(self, N, Z_idx):
+    def getZ(self, N, Z_idx, min_Z, max_Z):
         if self.Z_non_linear:
             return Z_idx
         Z_idx = K.squeeze(Z_idx, axis=1)
-        indices = self.get_indices(N, Z_idx)
+        indices = self.get_indices(N, Z_idx, min_Z)
+        return tf.sparse.to_dense(tf.sparse.SparseTensor(indices, tf.ones(N), (N, max_Z - min_Z + 1)))
+    
+    def getZ_v1(self, N, Z_idx):
+        if self.Z_non_linear:
+            return Z_idx
+        Z_idx = K.squeeze(Z_idx, axis=1)
+        indices = self.get_indices_v1(N, Z_idx)
         return tf.sparse.to_dense(tf.sparse.SparseTensor(indices, tf.ones(N), (N, tf.reduce_max(Z_idx) + 1)))
 
-    def getD(self, Z_idx):
-        coords = tf.cast(self.coords[:(tf.reduce_max(Z_idx) + 1)], tf.float32)
-        r = tf.reduce_sum(coords * coords, axis=1)
-        M = r - 2 * K.dot(coords, tf.transpose(coords)) + tf.transpose(r)
-        D = self.sig2bs[0] * tf.math.exp(-M / (2 * self.sig2e))
+    def getD(self, min_Z, max_Z):
+        a = tf.range(min_Z, max_Z + 1)
+        d = tf.shape(a)[0]
+        ix_ = tf.reshape(tf.stack([tf.repeat(a, d), tf.tile(a, [d])], 1), [d, d, 2])
+        M = tf.gather_nd(self.coords, ix_)
+        M = tf.cast(M, tf.float32)
+        D = self.sig2bs[0] * tf.math.exp(-M / (2 * self.sig2bs[1]))
         return D
     
     def custom_loss_lm(self, y_true, y_pred, Z_idxs):
@@ -55,10 +82,15 @@ class NLL(Layer):
         V = self.sig2e * tf.eye(N)
         if self.mode == 'intercepts':
             for k, Z_idx in enumerate(Z_idxs):
-                Z = self.getZ(N, Z_idx)
+                min_Z = tf.reduce_min(Z_idx)
+                max_Z = tf.reduce_max(Z_idx)
+                Z = self.getZ(N, Z_idx, min_Z, max_Z)
+                # Z = self.getZ_v1(N, Z_idx)
                 V += self.sig2bs[k] * K.dot(Z, K.transpose(Z))
         elif self.mode == 'slopes':
-            Z0 = self.getZ(N, Z_idxs[0])
+            min_Z = tf.reduce_min(Z_idxs[0])
+            max_Z = tf.reduce_max(Z_idxs[0])
+            Z0 = self.getZ(N, Z_idxs[0], min_Z, max_Z)
             Z_list = [Z0]
             for k in range(1, len(self.sig2bs)):
                 T = tf.linalg.tensor_diag(K.squeeze(Z_idxs[1], axis=1) ** k)
@@ -77,9 +109,11 @@ class NLL(Layer):
                             continue
                     V += sig * K.dot(Z_list[j], K.transpose(Z_list[k]))
         elif self.mode == 'spatial':
-            D = self.getD(Z_idxs[0])
-            Z = self.getZ(N, Z_idxs[0])
-            V += self.sig2bs[0] * K.dot(Z, K.dot(D, K.transpose(Z)))
+            min_Z = tf.reduce_min(Z_idxs[0])
+            max_Z = tf.reduce_max(Z_idxs[0])
+            D = self.getD(min_Z, max_Z)
+            Z = self.getZ(N, Z_idxs[0], min_Z, max_Z)
+            V += K.dot(Z, K.dot(D, K.transpose(Z)))
         V_inv = tf.linalg.inv(V)
         loss2 = K.dot(K.transpose(y_true - y_pred),
                       K.dot(V_inv, y_true - y_pred))
