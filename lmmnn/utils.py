@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from collections import namedtuple
 from scipy import sparse
+from scipy.spatial.kdtree import distance_matrix
 from sklearn.model_selection import train_test_split
 from scipy.spatial.distance import pdist, squareform
 
@@ -12,7 +13,7 @@ NNResult = namedtuple('NNResult', ['metric', 'sigmas', 'rhos', 'n_epochs', 'time
 
 NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
                                  'N', 'qs', 'sig2e', 'sig2bs', 'rhos', 'k', 'deep', 'batch', 'epochs', 'patience',
-                                 'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors', 'coords'])
+                                 'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors', 'dist_matrix', 'verbose'])
 
 def get_dummies(vec, vec_max):
     vec_size = vec.size
@@ -41,7 +42,7 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     X = np.random.uniform(-1, 1, N * n_fixed_effects).reshape((N, n_fixed_effects))
     betas = np.ones(n_fixed_effects)
     Xbeta = params['fixed_intercept'] + X @ betas
-    M = None
+    dist_matrix = None
     if params['X_non_linear']:
         fX = Xbeta * np.cos(Xbeta) + 2 * X[:, 0] * X[:, 1]
     else:
@@ -95,8 +96,8 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
         x_cols.append('t')
     elif mode == 'spatial': # len(qs) should be 1
         coords = np.stack([np.random.uniform(-10, 10, qs[0]), np.random.uniform(-10, 10, qs[0])], axis=1)
-        M = squareform(pdist(coords)) ** 2
-        D = sig2bs[0] * np.exp(-M / (2 * sig2bs[1]))
+        dist_matrix = squareform(pdist(coords)) ** 2
+        D = sig2bs[0] * np.exp(-dist_matrix / (2 * sig2bs[1]))
         b = np.random.multivariate_normal(np.zeros(qs[0]), D, 1)[0]
         fs = np.random.poisson(params['n_per_cat'], qs[0]) + 1
         fs_sum = fs.sum()
@@ -117,4 +118,4 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     df['y'] = y
     X_train, X_test, y_train, y_test = train_test_split(
         df.drop('y', axis=1), df['y'], test_size=0.2)
-    return X_train, X_test, y_train, y_test, x_cols, M
+    return X_train, X_test, y_train, y_test, x_cols, dist_matrix

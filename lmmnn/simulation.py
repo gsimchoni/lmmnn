@@ -57,7 +57,8 @@ def run_reg_nn(nn_in, reg_type):
     return reg_nn(nn_in.X_train, nn_in.X_test, nn_in.y_train, nn_in.y_test, nn_in.qs,
         nn_in.x_cols, nn_in.batch, nn_in.epochs, nn_in.patience, reg_type=reg_type,
         deep=nn_in.deep, Z_non_linear=nn_in.Z_non_linear, Z_embed_dim_pct = nn_in.Z_embed_dim_pct,
-        mode = nn_in.mode, n_sig2bs = nn_in.n_sig2bs, est_cors = nn_in.estimated_cors, coords = nn_in.coords)
+        mode = nn_in.mode, n_sig2bs = nn_in.n_sig2bs, est_cors = nn_in.estimated_cors,
+        dist_matrix = nn_in.dist_matrix, verbose = nn_in.verbose)
 
 
 def summarize_sim(nn_in, res, reg_type):
@@ -115,7 +116,7 @@ def simulation(out_file, params):
                         logger.info('mode: %s, N: %d, sig2e: %.2f; sig2bs: [%s]; qs: [%s]; rhos: [%s]' %
                                     (mode, N, sig2e, ', '.join(map(str, sig2bs)), ', '.join(map(str, qs)), ', '.join(map(str, rhos))))
                         for k in range(params['n_iter']):
-                            X_train, X_test, y_train, y_test, x_cols, coords = generate_data(
+                            X_train, X_test, y_train, y_test, x_cols, dist_matrix = generate_data(
                                 mode, qs, sig2e, sig2bs, N, rhos, params)
                             if deep in ['no', 'both']:
                                 logger.info(' iteration: %d, deep: %s' %
@@ -123,12 +124,12 @@ def simulation(out_file, params):
                                 nn_in = NNInput(X_train, X_test, y_train, y_test, x_cols, N, qs, sig2e,
                                                 sig2bs, rhos, k, False, params['batch'], params['epochs'], params['patience'],
                                                 params['Z_non_linear'], params['Z_embed_dim_pct'], mode, n_sig2bs,
-                                                params['estimated_cors'], coords)
+                                                params['estimated_cors'], dist_matrix, params['verbose'])
                                 iterate_reg_types(counter, res_df, out_file, nn_in)
                             if deep in ['yes', 'both']:
                                 logger.info(' iteration: %d, deep: %s' % (k, True))
                                 nn_in = NNInput(X_train, X_test, y_train, y_test, x_cols, N, qs, sig2e,
                                                 sig2bs, rhos, k, True, params['batch'], params['epochs'], params['patience'],
                                                 params['Z_non_linear'], params['Z_embed_dim_pct'], mode, n_sig2bs,
-                                                params['estimated_cors'], coords)
+                                                params['estimated_cors'], dist_matrix, params['verbose'])
                                 iterate_reg_types(counter, res_df, out_file, nn_in)

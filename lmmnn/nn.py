@@ -177,7 +177,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
 
 
 def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
-        patience, mode, n_sig2bs, est_cors, deep=False, ignore_RE=False):
+        patience, mode, n_sig2bs, est_cors, deep=False, verbose=False, ignore_RE=False):
     if mode == 'glmm':
         loss = 'binary_crossentropy'
         last_layer_activation = 'sigmoid'
@@ -201,7 +201,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     callbacks = [EarlyStopping(
         monitor='val_loss', patience=epochs if patience is None else patience)]
     history = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs,
-                        validation_split=0.1, callbacks=callbacks, verbose=0)
+                        validation_split=0.1, callbacks=callbacks, verbose=verbose)
     y_pred = model.predict(X_test).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_rhos = [None for _ in range(len(est_cors))]
@@ -209,7 +209,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
 
 
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode, n_sig2bs, est_cors, dist_matrix,
-        deep=False, Z_non_linear=False, Z_embed_dim_pct=10):
+        deep=False, verbose=False, Z_non_linear=False, Z_embed_dim_pct=10):
     if mode == 'spatial':
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     # dmatrix_tf = tf.constant(dist_matrix)
@@ -270,7 +270,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     X_test_z_cols = [X_test[z_col] for z_col in z_cols]
     history = model.fit([X_train[x_cols], y_train] + X_train_z_cols, None,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
-                        callbacks=callbacks, verbose=0, shuffle=False)
+                        callbacks=callbacks, verbose=verbose, shuffle=False)
 
     sig2e_est, sig2b_ests, rho_ests = model.layers[-1].get_vars()
     y_pred_tr = model.predict(
@@ -309,7 +309,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     return y_pred, (sig2e_est, list(sig2b_ests)), list(rho_ests), len(history.history['loss'])
 
 
-def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode, n_sig2bs, est_cors, deep=False):
+def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode, n_sig2bs, est_cors, deep=False, verbose=False):
     if mode == 'glmm':
         loss = 'binary_crossentropy'
         last_layer_activation = 'sigmoid'
@@ -343,7 +343,7 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
     X_test_z_cols = [X_test[z_col] for z_col in X_train.columns[X_train.columns.str.startswith('z')]]
     history = model.fit([X_train[x_cols]] + X_train_z_cols, y_train,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
-                        callbacks=callbacks, verbose=0)
+                        callbacks=callbacks, verbose=verbose)
     y_pred = model.predict([X_test[x_cols]] + X_test_z_cols,
                            ).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
@@ -351,7 +351,7 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
     return y_pred, (None, none_sigmas), none_rhos, len(history.history['loss'])
 
 
-def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, n_sig2bs, est_cors, deep=False):
+def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, n_sig2bs, est_cors, deep=False, verbose=False):
     clusters_train, clusters_test = X_train['z0'].values, X_test['z0'].values
     X_train, X_test = X_train[x_cols].values, X_test[x_cols].values
     y_train, y_test = y_train.values, y_test.values
@@ -366,7 +366,7 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
     model.compile(loss='mse', optimizer='adam')
 
     model, b_hat, sig2e_est, n_epochs, _ = menet_fit(model, X_train, y_train, clusters_train, q, batch_size, epochs,
-                                                patience, verbose=False)
+                                                patience, verbose=verbose)
     y_pred = menet_predict(model, X_test, clusters_test, q, b_hat)
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_rhos = [None for _ in range(len(est_cors))]
@@ -374,24 +374,24 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 
 
 def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, reg_type, deep,
-        Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, coords):
+        Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, dist_matrix, verbose):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep, verbose)
     elif reg_type == 'lmm':
         y_pred, sigmas, rhos, n_epochs = reg_nn_lmm(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode,
-                n_sig2bs, est_cors, coords, deep, Z_non_linear, Z_embed_dim_pct)
+                n_sig2bs, est_cors, dist_matrix, deep, verbose, Z_non_linear, Z_embed_dim_pct)
     elif reg_type == 'ignore':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep, ignore_RE=True)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep, verbose, ignore_RE=True)
     elif reg_type == 'embed':
         y_pred, sigmas, rhos, n_epochs = reg_nn_embed(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep, verbose)
     elif reg_type == 'menet':
         y_pred, sigmas, rhos, n_epochs = reg_nn_menet(
-            X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience, n_sig2bs, est_cors, deep)
+            X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience, n_sig2bs, est_cors, deep, verbose)
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()

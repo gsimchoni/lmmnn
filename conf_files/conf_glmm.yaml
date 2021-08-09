@@ -26,3 +26,4 @@ Z_embed_dim_pct: 10
 batch: 30
 epochs: 500
 patience: 10
+verbose: False
