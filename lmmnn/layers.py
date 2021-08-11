@@ -8,7 +8,7 @@ import tensorflow.keras.backend as K
 class NLL(Layer):
     """Negative Log Likelihood Loss Layer"""
 
-    def __init__(self, mode, sig2e, sig2bs, rhos = [], est_cors = [], Z_non_linear=False, coords=None):
+    def __init__(self, mode, sig2e, sig2bs, rhos = [], est_cors = [], Z_non_linear=False, dist_matrix=None):
         super(NLL, self).__init__(dynamic=False)
         self.sig2bs = tf.Variable(
             sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
@@ -18,7 +18,7 @@ class NLL(Layer):
             self.sig2e = tf.Variable(
                 sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
             if self.mode == 'spatial':
-                self.coords = coords
+                self.dist_matrix = dist_matrix
         if self.mode == 'slopes':
             self.rhos = tf.Variable(
                 rhos, name='rhos', constraint=lambda x: tf.clip_by_value(x, -1.0, 1.0))
@@ -72,7 +72,7 @@ class NLL(Layer):
         a = tf.range(min_Z, max_Z + 1)
         d = tf.shape(a)[0]
         ix_ = tf.reshape(tf.stack([tf.repeat(a, d), tf.tile(a, [d])], 1), [d, d, 2])
-        M = tf.gather_nd(self.coords, ix_)
+        M = tf.gather_nd(self.dist_matrix, ix_)
         M = tf.cast(M, tf.float32)
         D = self.sig2bs[0] * tf.math.exp(-M / (2 * self.sig2bs[1]))
         return D
