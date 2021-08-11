@@ -160,7 +160,6 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
         gZ_train = get_dummies(X_train['z0'].values, qs[0])
         gZ_train = sparse.csr_matrix(gZ_train)
         D = sig2bs[0] * np.exp(-dist_matrix / (2 * sig2bs[1]))
-        D_inv = np.linalg.inv(D)
         N = gZ_train.shape[0]
         if X_train.shape[0] > 10000:
             samp = np.random.choice(X_train.shape[0], 10000, replace=False)
@@ -168,7 +167,8 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
             samp = np.arange(X_train.shape[0])
         gZ_train = gZ_train[samp]
         V = gZ_train @ D @ gZ_train.T + np.eye(gZ_train.shape[0]) * sig2e
-        b_hat = D @ gZ_train.T @ np.linalg.inv(V) @ (y_train.values[samp] - y_pred_tr[samp])
+        V_inv_y = np.linalg.inv(V) @ (y_train.values[samp] - y_pred_tr[samp])
+        b_hat = D @ gZ_train.T @ V_inv_y
         # A = gZ_train.T @ gZ_train / sig2e + D_inv
         # A_inv_Zt = np.linalg.inv(A) @ gZ_train.T
         # b_hat = A_inv_Zt / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
