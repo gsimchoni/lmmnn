@@ -19,7 +19,16 @@ n_iter: 5
 n_per_cat: 3
 fixed_intercept: 1
 n_fixed_effects: 10
-deep: 'yes'
+n_neurons:
+  - 100
+  - 50
+  - 25
+  - 12
+dropout:
+  - 0.25
+  - 0.25
+  - 0.25
+activation: 'relu'
 X_non_linear: True
 Z_non_linear: False
 Z_embed_dim_pct: 10

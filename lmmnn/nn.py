@@ -17,33 +17,31 @@ from lmmnn.layers import NLL
 from lmmnn.menet import menet_fit, menet_predict
 
 
-def add_shallow_layers_sequential(model, input_dim):
-    model.add(Dense(10, input_dim=input_dim))
+def add_layers_sequential(model, n_neurons, dropout, activation, input_dim):
+    if len(n_neurons) > 0:
+        model.add(Dense(n_neurons[0], input_dim=input_dim, activation=activation))
+        if dropout is not None and len(dropout) > 0:
+            model.add(Dropout(dropout[0]))
+        for i in range(1, len(n_neurons) - 1):
+            model.add(Dense(n_neurons[i], activation=activation))
+            if dropout is not None and len(dropout) > i:
+                model.add(Dropout(dropout[i]))
+        if len(n_neurons) > 1:
+            model.add(Dense(n_neurons[-1], activation=activation))
 
 
-def add_deep_layers_sequential(model, input_dim):
-    model.add(Dense(100, input_dim=input_dim, activation='relu'))
-    model.add(Dropout(0.25))
-    model.add(Dense(50, activation='relu'))
-    model.add(Dropout(0.25))
-    model.add(Dense(25, activation='relu'))
-    model.add(Dropout(0.25))
-    model.add(Dense(12, activation='relu'))
-
-
-def add_shallow_layers_functional(X_input):
-    return Dense(10)(X_input)
-
-
-def add_deep_layers_functional(X_input, input_dim):
-    hidden1 = Dense(100, input_dim=input_dim, activation='relu')(X_input)
-    drop1 = Dropout(0.25)(hidden1)
-    hidden2 = Dense(50, activation='relu')(drop1)
-    drop2 = Dropout(0.25)(hidden2)
-    hidden3 = Dense(25, activation='relu')(drop2)
-    drop3 = Dropout(0.25)(hidden3)
-    out_hidden = Dense(12, activation='relu')(drop3)
-    return out_hidden
+def add_layers_functional(X_input, n_neurons, dropout, activation, input_dim):
+    if len(n_neurons) > 0:
+        x = Dense(n_neurons[0], input_dim=input_dim, activation=activation)(X_input)
+        if dropout is not None and len(dropout) > 0:
+            x = Dropout(dropout[0])(x)
+        for i in range(1, len(n_neurons) - 1):
+            x = Dense(n_neurons[i], activation=activation)(x)
+            if dropout is not None and len(dropout) > i:
+                x = Dropout(dropout[i])(x)
+        if len(n_neurons) > 1:
+            x = Dense(n_neurons[-1], activation=activation)(x)
+    return x
 
 
 def process_one_hot_encoding(X_train, X_test, x_cols):
@@ -177,7 +175,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
 
 
 def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
-        patience, mode, n_sig2bs, est_cors, deep=False, verbose=False, ignore_RE=False):
+        patience, n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose=False, ignore_RE=False):
     if mode == 'glmm':
         loss = 'binary_crossentropy'
         last_layer_activation = 'sigmoid'
@@ -190,10 +188,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
         X_train, X_test = process_one_hot_encoding(X_train, X_test, x_cols)
 
     model = Sequential()
-    if deep:
-        add_deep_layers_sequential(model, X_train.shape[1])
-    else:
-        add_shallow_layers_sequential(model, X_train.shape[1])
+    add_layers_sequential(model, n_neurons, dropout, activation, X_train.shape[1])
     model.add(Dense(1, activation=last_layer_activation))
 
     model.compile(loss=loss, optimizer='adam')
@@ -208,8 +203,8 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     return y_pred, (None, none_sigmas), none_rhos, len(history.history['loss'])
 
 
-def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode, n_sig2bs, est_cors, dist_matrix,
-        deep=False, verbose=False, Z_non_linear=False, Z_embed_dim_pct=10):
+def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
+        mode, n_sig2bs, est_cors, dist_matrix, verbose=False, Z_non_linear=False, Z_embed_dim_pct=10):
     if mode == 'spatial':
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     # dmatrix_tf = tf.constant(dist_matrix)
@@ -235,10 +230,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         t_input = Input(shape=(1,))
         Z_inputs = [Z_input, t_input]
     
-    if deep:
-        out_hidden = add_deep_layers_functional(X_input, X_train[x_cols].shape[1])
-    else:
-        out_hidden = add_shallow_layers_functional(X_input)
+    out_hidden = add_layers_functional(X_input, n_neurons, dropout, activation, X_train[x_cols].shape[1])
     y_pred_output = Dense(1)(out_hidden)
     if Z_non_linear and (mode in ['intercepts', 'glmm']):
         Z_nll_inputs = []
@@ -309,7 +301,8 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     return y_pred, (sig2e_est, list(sig2b_ests)), list(rho_ests), len(history.history['loss'])
 
 
-def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, mode, n_sig2bs, est_cors, deep=False, verbose=False):
+def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience,
+        n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose=False):
     if mode == 'glmm':
         loss = 'binary_crossentropy'
         last_layer_activation = 'sigmoid'
@@ -328,10 +321,7 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
         Z_inputs.append(Z_input)
         embeds.append(embed)
     concat = Concatenate()([X_input] + embeds)
-    if deep:
-        out_hidden = add_deep_layers_functional(concat, X_train[x_cols].shape[1] + embed_dim * len(qs))
-    else:
-        out_hidden = add_shallow_layers_functional(concat)
+    out_hidden = add_layers_functional(concat, n_neurons, dropout, activation, X_train[x_cols].shape[1] + embed_dim * len(qs))
     output = Dense(1, activation=last_layer_activation)(out_hidden)
     model = Model(inputs=[X_input] + Z_inputs, outputs=output)
 
@@ -351,16 +341,14 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
     return y_pred, (None, none_sigmas), none_rhos, len(history.history['loss'])
 
 
-def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience, n_sig2bs, est_cors, deep=False, verbose=False):
+def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience,
+        n_neurons, dropout, activation, n_sig2bs, est_cors, verbose=False):
     clusters_train, clusters_test = X_train['z0'].values, X_test['z0'].values
     X_train, X_test = X_train[x_cols].values, X_test[x_cols].values
     y_train, y_test = y_train.values, y_test.values
 
     model = Sequential()
-    if deep:
-        add_deep_layers_sequential(model, X_train.shape[1])
-    else:
-        add_shallow_layers_sequential(model, X_train.shape[1])
+    add_layers_sequential(model, n_neurons, dropout, activation, X_train.shape[1])
     model.add(Dense(1))
 
     model.compile(loss='mse', optimizer='adam')
@@ -373,25 +361,30 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
     return y_pred, (sig2e_est, none_sigmas), none_rhos, n_epochs
 
 
-def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, reg_type, deep,
+def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, n_neurons, dropout, activation, reg_type,
         Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, dist_matrix, verbose):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep, verbose)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose)
     elif reg_type == 'lmm':
         y_pred, sigmas, rhos, n_epochs = reg_nn_lmm(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode,
-                n_sig2bs, est_cors, dist_matrix, deep, verbose, Z_non_linear, Z_embed_dim_pct)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, mode,
+            n_sig2bs, est_cors, dist_matrix, verbose, Z_non_linear, Z_embed_dim_pct)
     elif reg_type == 'ignore':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep, verbose, ignore_RE=True)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose, ignore_RE=True)
     elif reg_type == 'embed':
         y_pred, sigmas, rhos, n_epochs = reg_nn_embed(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, mode, n_sig2bs, est_cors, deep, verbose)
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose)
     elif reg_type == 'menet':
         y_pred, sigmas, rhos, n_epochs = reg_nn_menet(
-            X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience, n_sig2bs, est_cors, deep, verbose)
+            X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, n_sig2bs, est_cors, verbose)
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
