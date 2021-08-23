@@ -14,7 +14,7 @@ NNResult = namedtuple('NNResult', ['metric', 'sigmas', 'rhos', 'n_epochs', 'time
 NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
                                  'N', 'qs', 'sig2e', 'sig2bs', 'rhos', 'k', 'batch', 'epochs', 'patience',
                                  'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors',
-                                 'dist_matrix', 'verbose', 'n_neurons', 'dropout', 'activation'])
+                                 'dist_matrix', 'verbose', 'n_neurons', 'dropout', 'activation', 'spatial_embed_neurons'])
 
 def get_dummies(vec, vec_max):
     vec_size = vec.size
@@ -95,7 +95,7 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
         df['t'] = t
         df['z0'] = Z_idx
         x_cols.append('t')
-    elif mode == 'spatial': # len(qs) should be 1
+    elif mode == 'spatial' or mode == 'spatial_embedded': # len(qs) should be 1
         coords = np.stack([np.random.uniform(-10, 10, qs[0]), np.random.uniform(-10, 10, qs[0])], axis=1)
         dist_matrix = squareform(pdist(coords)) ** 2
         D = sig2bs[0] * np.exp(-dist_matrix / (2 * sig2bs[1]))
