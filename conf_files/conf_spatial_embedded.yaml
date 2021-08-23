@@ -22,6 +22,7 @@ fixed_intercept: 1
 n_fixed_effects: 10
 spatial_embed_neurons:
   - 10
+  - 1000
 n_neurons:
   - 100
   - 50

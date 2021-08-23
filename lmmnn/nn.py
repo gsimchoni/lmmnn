@@ -259,9 +259,9 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
             Z_nll_inputs.append(Z_embed)
             ls.append(l)
     elif mode == 'spatial_embedded':
-        Z_embed = add_layers_functional(Z_inputs[0], spatial_embed_neurons + [qs[0]], dropout=None, activation='relu', input_dim=2)
+        Z_embed = add_layers_functional(Z_inputs[0], spatial_embed_neurons, dropout=None, activation='relu', input_dim=2)
         Z_nll_inputs = [Z_embed]
-        ls = qs
+        ls = [spatial_embed_neurons[-1]]
         Z_non_linear = True
     else:
         Z_nll_inputs = Z_inputs
