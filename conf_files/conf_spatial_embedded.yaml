@@ -6,13 +6,16 @@ sig2b_list:
   -
     - 0.1
     - 1.0
+    - 10.0
   -
     - 0.1
     - 1.0
+    - 10.0
 q_list:
   -
     - 100
     - 1000
+    - 10000
 rho_list: []
 N_list:
   - 100000
@@ -21,7 +24,11 @@ n_per_cat: 3
 fixed_intercept: 1
 n_fixed_effects: 10
 spatial_embed_neurons:
-  - 10
+  - 1000
+  - 500
+  - 200
+  - 100
+  - 500
   - 1000
 n_neurons:
   - 100
