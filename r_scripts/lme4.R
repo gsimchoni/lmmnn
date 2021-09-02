@@ -8,10 +8,11 @@ setwd("C:/Users/gsimchoni/lmmnn")
 lmmnn_utils <- import("lmmnn.utils")
 params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
                     X_non_linear = TRUE, Z_non_linear = FALSE, Z_embed_dim_pct = 10)
+mode = 'intercepts'
 sig2e <- 1.0
 sig2b_list <- c(0.1, 1.0, 10.0)
 q_list <- c(100L, 1000L, 10000L)
-N <- 100000L
+N <- 10000L
 n_iter <- 5
 
 res_list <- list()
@@ -24,7 +25,7 @@ for (sig2b in sig2b_list) {
       counter <- counter + 1
       cat(glue::glue("  iteration: {k}"), "\n")
       py_res <- lmmnn_utils$generate_data(
-        q = q, sig2e = sig2e, sig2b = sig2b, N = N, params = params_dict)
+        mode = mode, qs = list(q), sig2e = sig2e, sig2bs = list(sig2b), N = N, rhos = list(), params = params_dict)
       X_train = py_res[[1]]
       X_test = py_res[[2]]
       y_train = py_res[[3]]
@@ -35,7 +36,7 @@ for (sig2b in sig2b_list) {
       df_test <- data.frame(y = y_test)
       df_test <- cbind(df_test, X_test)
       
-      form <- as.formula(str_c("y ~ ", str_c(str_c(str_c("X", 0:9), collapse = " + "), " + (1 | z)")))
+      form <- as.formula(str_c("y ~ ", str_c(str_c(str_c("X", 0:9), collapse = " + "), " + (1 | z0)")))
       start <- Sys.time()
       out <- lmer(form, df_train)
       end <- Sys.time()
