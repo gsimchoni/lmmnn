@@ -14,7 +14,7 @@ class NLL(Layer):
             sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
         self.Z_non_linear = Z_non_linear
         self.mode = mode
-        if self.mode in ['intercepts', 'slopes', 'spatial']:
+        if self.mode in ['intercepts', 'slopes', 'spatial', 'spatial_embedded']:
             self.sig2e = tf.Variable(
                 sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
             if self.mode == 'spatial':
@@ -28,7 +28,7 @@ class NLL(Layer):
             self.x_ks, self.w_ks = np.polynomial.hermite.hermgauss(self.nGQ)
 
     def get_vars(self):
-        if self.mode in ['intercepts', 'spatial']:
+        if self.mode in ['intercepts', 'spatial', 'spatial_embedded']:
             return self.sig2e.numpy(), self.sig2bs.numpy(), []
         if self.mode == 'glmm':
             return None, self.sig2bs.numpy(), []
@@ -80,7 +80,7 @@ class NLL(Layer):
     def custom_loss_lm(self, y_true, y_pred, Z_idxs):
         N = K.shape(y_true)[0]
         V = self.sig2e * tf.eye(N)
-        if self.mode == 'intercepts':
+        if self.mode == 'intercepts' or self.mode == 'spatial_embedded':
             for k, Z_idx in enumerate(Z_idxs):
                 min_Z = tf.reduce_min(Z_idx)
                 max_Z = tf.reduce_max(Z_idx)

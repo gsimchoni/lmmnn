@@ -171,6 +171,20 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
         # A_inv_Zt = np.linalg.inv(A) @ gZ_train.T
         # b_hat = A_inv_Zt / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
         # b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
+    elif mode == 'spatial_embedded':
+        loc_df = X_train[['D1', 'D2']]
+        last_layer = Model(inputs = model.input[2], outputs = model.layers[-2].output)
+        gZ_train = last_layer.predict([loc_df])
+        if X_train.shape[0] > 10000:
+            samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+        else:
+            samp = np.arange(X_train.shape[0])
+        gZ_train = gZ_train[samp]
+        n_cats = ls
+        D_inv = get_D_est(n_cats, 1 / sig2bs)
+        A = gZ_train.T @ gZ_train / sig2e + D_inv
+        b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
+        b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
     return b_hat
 
 
@@ -204,8 +218,8 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
 
 
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
-        mode, n_sig2bs, est_cors, dist_matrix, verbose=False, Z_non_linear=False, Z_embed_dim_pct=10):
-    if mode == 'spatial':
+        mode, n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose=False, Z_non_linear=False, Z_embed_dim_pct=10):
+    if mode == 'spatial' or mode == 'spatial_embedded':
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     # dmatrix_tf = tf.constant(dist_matrix)
     dmatrix_tf = dist_matrix
@@ -229,6 +243,9 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         Z_input = Input(shape=(1,), dtype=tf.int64)
         t_input = Input(shape=(1,))
         Z_inputs = [Z_input, t_input]
+    elif mode == 'spatial_embedded':
+        Z_inputs = [Input(shape=(2,))]
+        n_sig2bs_init = 1
     
     out_hidden = add_layers_functional(X_input, n_neurons, dropout, activation, X_train[x_cols].shape[1])
     y_pred_output = Dense(1)(out_hidden)
@@ -241,6 +258,11 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
             Z_embed = Reshape(target_shape=(l, ))(Z_embed)
             Z_nll_inputs.append(Z_embed)
             ls.append(l)
+    elif mode == 'spatial_embedded':
+        Z_embed = add_layers_functional(Z_inputs[0], spatial_embed_neurons, dropout=None, activation='relu', input_dim=2)
+        Z_nll_inputs = [Z_embed]
+        ls = [spatial_embed_neurons[-1]]
+        Z_non_linear = True
     else:
         Z_nll_inputs = Z_inputs
         ls = None
@@ -252,14 +274,19 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     model.compile(optimizer='adam')
 
     patience = epochs if patience is None else patience
-    if Z_non_linear:
+    if Z_non_linear and mode == 'intercepts':
         callbacks = [EarlyStoppingWithSigmasConvergence(patience=patience)]
     else:
         callbacks = [EarlyStopping(patience=patience, monitor='val_loss')]
+    if not Z_non_linear:
         X_train.sort_values(by=z_cols, inplace=True)
         y_train = y_train[X_train.index]
-    X_train_z_cols = [X_train[z_col] for z_col in z_cols]
-    X_test_z_cols = [X_test[z_col] for z_col in z_cols]
+    if mode == 'spatial_embedded':
+        X_train_z_cols = [X_train[['D1', 'D2']]]
+        X_test_z_cols = [X_test[['D1', 'D2']]]
+    else:
+        X_train_z_cols = [X_train[z_col] for z_col in z_cols]
+        X_test_z_cols = [X_test[z_col] for z_col in z_cols]
     history = model.fit([X_train[x_cols], y_train] + X_train_z_cols, None,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
                         callbacks=callbacks, verbose=verbose, shuffle=False)
@@ -298,6 +325,12 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         Z_test = sparse.hstack(Z_list)
         y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0]) + Z_test @ b_hat
+    elif mode == 'spatial_embedded':
+        last_layer = Model(inputs = model.input[2], outputs = model.layers[-2].output)
+        gZ_test = last_layer.predict(X_test_z_cols)
+        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+                X_test.shape[0]) + gZ_test @ b_hat
+        sig2b_ests = np.concatenate([sig2b_ests, [np.nan]])
     return y_pred, (sig2e_est, list(sig2b_ests)), list(rho_ests), len(history.history['loss'])
 
 
@@ -362,7 +395,7 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 
 
 def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, n_neurons, dropout, activation, reg_type,
-        Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, dist_matrix, verbose):
+        Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
@@ -372,7 +405,7 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience
         y_pred, sigmas, rhos, n_epochs = reg_nn_lmm(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode,
-            n_sig2bs, est_cors, dist_matrix, verbose, Z_non_linear, Z_embed_dim_pct)
+            n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose, Z_non_linear, Z_embed_dim_pct)
     elif reg_type == 'ignore':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,

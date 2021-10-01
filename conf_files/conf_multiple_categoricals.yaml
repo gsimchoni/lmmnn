@@ -23,6 +23,7 @@ n_iter: 5
 n_per_cat: 3
 fixed_intercept: 1
 n_fixed_effects: 10
+spatial_embed_neurons:
 n_neurons:
   - 100
   - 50

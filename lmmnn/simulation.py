@@ -59,11 +59,15 @@ def run_reg_nn(nn_in, reg_type):
         nn_in.n_neurons, nn_in.dropout, nn_in.activation, reg_type=reg_type,
         Z_non_linear=nn_in.Z_non_linear, Z_embed_dim_pct = nn_in.Z_embed_dim_pct,
         mode = nn_in.mode, n_sig2bs = nn_in.n_sig2bs, est_cors = nn_in.estimated_cors,
-        dist_matrix = nn_in.dist_matrix, verbose = nn_in.verbose)
+        dist_matrix = nn_in.dist_matrix, spatial_embed_neurons = nn_in.spatial_embed_neurons, verbose = nn_in.verbose)
 
 
 def summarize_sim(nn_in, res, reg_type):
-    res = [nn_in.mode, nn_in.N, nn_in.sig2e] + list(nn_in.sig2bs) + list(nn_in.qs) + list(nn_in.rhos) +\
+    if nn_in.spatial_embed_neurons is None:
+        spatial_embed_out_dim = []
+    else:
+        spatial_embed_out_dim = [nn_in.spatial_embed_neurons[-1]]
+    res = [nn_in.mode, nn_in.N, nn_in.sig2e] + list(nn_in.sig2bs) + list(nn_in.qs) + list(nn_in.rhos) + spatial_embed_out_dim +\
         [nn_in.k, reg_type, res.metric, res.sigmas[0]] + res.sigmas[1] + res.rhos +\
         [res.n_epochs, res.time]
     return res
@@ -76,6 +80,7 @@ def simulation(out_file, params):
     n_rhos = len(params['rho_list'])
     estimated_cors = params['estimated_cors']
     mode = params['mode']
+    spatial_embed_out_dim_name = []
     if mode == 'intercepts':
         assert n_sig2bs == n_categoricals
         rhos_names =  []
@@ -99,6 +104,13 @@ def simulation(out_file, params):
         rhos_names =  []
         rhos_est_names =  []
         metric = 'mse'
+    elif mode == 'spatial_embedded':
+        assert n_categoricals == 1
+        assert n_sig2bs == 2
+        rhos_names =  []
+        rhos_est_names =  []
+        metric = 'mse'
+        spatial_embed_out_dim_name = ['spatial_embed_out_dim']
     else:
         raise ValueError('Unknown mode')
     qs_names =  list(map(lambda x: 'q' + str(x), range(n_categoricals)))
@@ -106,7 +118,7 @@ def simulation(out_file, params):
     sig2bs_est_names =  list(map(lambda x: 'sig2b_est' + str(x), range(n_sig2bs)))
     
     res_df = pd.DataFrame(columns=['mode', 'N', 'sig2e'] + sig2bs_names + qs_names + rhos_names +
-        ['experiment', 'exp_type', metric, 'sig2e_est'] +
+        spatial_embed_out_dim_name + ['experiment', 'exp_type', metric, 'sig2e_est'] +
         sig2bs_est_names + rhos_est_names + ['n_epochs', 'time'])
     for N in params['N_list']:
         for sig2e in params['sig2e_list']:
@@ -123,5 +135,5 @@ def simulation(out_file, params):
                                             sig2bs, rhos, k, params['batch'], params['epochs'], params['patience'],
                                             params['Z_non_linear'], params['Z_embed_dim_pct'], mode, n_sig2bs,
                                             params['estimated_cors'], dist_matrix, params['verbose'],
-                                            params['n_neurons'], params['dropout'], params['activation'])
+                                            params['n_neurons'], params['dropout'], params['activation'], params['spatial_embed_neurons'])
                             iterate_reg_types(counter, res_df, out_file, nn_in)
