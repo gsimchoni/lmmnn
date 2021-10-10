@@ -11,7 +11,7 @@ params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
                     X_non_linear = TRUE, Z_non_linear = FALSE, Z_embed_dim_pct = 10)
 mode <- "spatial"
 sig2e <- 1.0
-sig2b0_list <- c(0.1, 1.0, 10.0)
+sig2b0_list <- c(0.1, 1.0)
 sig2b1_list <- c(0.1, 1.0, 10.0)
 q_list <- c(100L, 1000L)
 N <- 10000L
@@ -63,6 +63,7 @@ for (sig2b0 in sig2b0_list) {
           
           mse <- mean((y_test - y_pred)^2)
           res_list[[counter]] <- list(
+            mode = mode,
             N = N,
             sig2e = sig2e,
             sig2b0 = sig2b0,
