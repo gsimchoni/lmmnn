@@ -11,14 +11,14 @@ sig2b_list:
     - 10.0
 q_list:
   -
-    - 100
+    - 1000
   -
-    - 100
+    - 1000
   -
-    - 100
+    - 1000
 rho_list: []
 N_list:
-  - 10000
+  - 100000
 n_iter: 5
 n_per_cat: 3
 fixed_intercept: 1
@@ -44,6 +44,3 @@ verbose: False
 log_params: True
 exp_types:
   - 'lmmnn'
-  - 'ignore'
-  - 'ohe'
-  - 'embeddings'

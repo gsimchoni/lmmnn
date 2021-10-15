@@ -65,7 +65,7 @@ def run_reg_nn(nn_in, reg_type):
         Z_non_linear=nn_in.Z_non_linear, Z_embed_dim_pct = nn_in.Z_embed_dim_pct,
         mode = nn_in.mode, n_sig2bs = nn_in.n_sig2bs, est_cors = nn_in.estimated_cors,
         dist_matrix = nn_in.dist_matrix, spatial_embed_neurons = nn_in.spatial_embed_neurons,
-        verbose = nn_in.verbose, log_params = nn_in.log_params)
+        verbose = nn_in.verbose, log_params = nn_in.log_params, idx = nn_in.k)
 
 
 def summarize_sim(nn_in, res, reg_type):
