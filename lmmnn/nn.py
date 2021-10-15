@@ -8,11 +8,11 @@ from sklearn.metrics import roc_auc_score
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Layer, Input
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
 from tensorflow.keras import Model
 
 from lmmnn.utils import NNResult, get_cov_mat, get_dummies
-from lmmnn.callbacks import EarlyStoppingWithSigmasConvergence
+from lmmnn.callbacks import LogEstParams, EarlyStoppingWithSigmasConvergence
 from lmmnn.layers import NLL
 from lmmnn.menet import menet_fit, menet_predict
 
@@ -218,7 +218,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
 
 
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
-        mode, n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose=False, Z_non_linear=False, Z_embed_dim_pct=10):
+        mode, n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False):
     if mode == 'spatial' or mode == 'spatial_embedded':
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     # dmatrix_tf = tf.constant(dist_matrix)
@@ -278,6 +278,8 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         callbacks = [EarlyStoppingWithSigmasConvergence(patience=patience)]
     else:
         callbacks = [EarlyStopping(patience=patience, monitor='val_loss')]
+    if log_params:
+        callbacks.extend([LogEstParams(), CSVLogger('lmmnn_params.log', append=True)])
     if not Z_non_linear:
         X_train.sort_values(by=z_cols, inplace=True)
         y_train = y_train[X_train.index]
@@ -395,7 +397,7 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 
 
 def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, n_neurons, dropout, activation, reg_type,
-        Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose):
+        Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose, log_params):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
@@ -405,7 +407,7 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience
         y_pred, sigmas, rhos, n_epochs = reg_nn_lmm(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode,
-            n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose, Z_non_linear, Z_embed_dim_pct)
+            n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose, Z_non_linear, Z_embed_dim_pct, log_params)
     elif reg_type == 'ignore':
         y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,

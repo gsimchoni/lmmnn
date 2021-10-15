@@ -37,3 +37,4 @@ batch: 30
 epochs: 500
 patience: 10
 verbose: False
+log_params: False

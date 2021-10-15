@@ -14,7 +14,7 @@ NNResult = namedtuple('NNResult', ['metric', 'sigmas', 'rhos', 'n_epochs', 'time
 NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
                                  'N', 'qs', 'sig2e', 'sig2bs', 'rhos', 'k', 'batch', 'epochs', 'patience',
                                  'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors',
-                                 'dist_matrix', 'verbose', 'n_neurons', 'dropout', 'activation', 'spatial_embed_neurons'])
+                                 'dist_matrix', 'verbose', 'n_neurons', 'dropout', 'activation', 'spatial_embed_neurons', 'log_params'])
 
 def get_dummies(vec, vec_max):
     vec_size = vec.size

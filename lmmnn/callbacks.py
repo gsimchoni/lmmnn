@@ -4,6 +4,19 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 
 
+class LogEstParams(Callback):
+    def __init__(self):
+        super(LogEstParams, self).__init__()
+
+    def on_epoch_end(self, epoch, logs):
+        sig2e_est, sig2bs_est, rhos_est = self.model.layers[-1].get_vars()
+        logs['sig2e_est'] = sig2e_est
+        for k, sig2b_est in enumerate(sig2bs_est):
+            logs['sig2b_est' + str(k)] = sig2b_est
+        for k, rho_est in enumerate(rhos_est):
+            logs['rho_est' + str(k)] = sig2b_est
+
+
 class PrintSigmas(Callback):
     """Print sigmas at each epoch end"""
     def __init__(self, print_steps = 10):

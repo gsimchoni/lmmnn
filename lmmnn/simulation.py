@@ -59,7 +59,8 @@ def run_reg_nn(nn_in, reg_type):
         nn_in.n_neurons, nn_in.dropout, nn_in.activation, reg_type=reg_type,
         Z_non_linear=nn_in.Z_non_linear, Z_embed_dim_pct = nn_in.Z_embed_dim_pct,
         mode = nn_in.mode, n_sig2bs = nn_in.n_sig2bs, est_cors = nn_in.estimated_cors,
-        dist_matrix = nn_in.dist_matrix, spatial_embed_neurons = nn_in.spatial_embed_neurons, verbose = nn_in.verbose)
+        dist_matrix = nn_in.dist_matrix, spatial_embed_neurons = nn_in.spatial_embed_neurons,
+        verbose = nn_in.verbose, log_params = nn_in.log_params)
 
 
 def summarize_sim(nn_in, res, reg_type):
@@ -135,5 +136,6 @@ def simulation(out_file, params):
                                             sig2bs, rhos, k, params['batch'], params['epochs'], params['patience'],
                                             params['Z_non_linear'], params['Z_embed_dim_pct'], mode, n_sig2bs,
                                             params['estimated_cors'], dist_matrix, params['verbose'],
-                                            params['n_neurons'], params['dropout'], params['activation'], params['spatial_embed_neurons'])
+                                            params['n_neurons'], params['dropout'], params['activation'], params['spatial_embed_neurons'],
+                                            params['log_params'])
                             iterate_reg_types(counter, res_df, out_file, nn_in)

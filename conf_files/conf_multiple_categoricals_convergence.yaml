@@ -1,29 +1,24 @@
-mode: 'slopes'
-estimated_cors:
-  - '01'
-  - '02'
+mode: 'intercepts'
+estimated_cors: []
 sig2e_list:
   - 1.0
 sig2b_list:
   -
-    - 0.5
-    - 5.0
+    - 0.1
   -
-    - 0.5
-    - 5.0
+    - 1.0
   -
-    - 0.5
-    - 5.0
+    - 10.0
 q_list:
   -
-    - 10000
-rho_list:
+    - 100
   -
-    - 0.5
+    - 100
   -
-    - 0.5
+    - 100
+rho_list: []
 N_list:
-  - 100000
+  - 10000
 n_iter: 5
 n_per_cat: 3
 fixed_intercept: 1
@@ -46,4 +41,4 @@ batch: 100
 epochs: 500
 patience: 10
 verbose: False
-log_params: False
+log_params: True
