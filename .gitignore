@@ -1,6 +1,6 @@
 lmmnn/__pycache__
 .vscode/
-lmmnn_sim.log
+*.log
 .Rhistory
 ukb_sim.log
 .ipynb_checkpoints
