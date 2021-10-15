@@ -4,3 +4,4 @@ lmmnn/__pycache__
 .Rhistory
 ukb_sim.log
 .ipynb_checkpoints
+res*.csv
