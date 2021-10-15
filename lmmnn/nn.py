@@ -279,7 +279,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     else:
         callbacks = [EarlyStopping(patience=patience, monitor='val_loss')]
     if log_params:
-        callbacks.extend([LogEstParams(), CSVLogger('lmmnn_params.log', append=True)])
+        callbacks.extend([LogEstParams(), CSVLogger('res_params.csv', append=True)])
     if not Z_non_linear:
         X_train.sort_values(by=z_cols, inplace=True)
         y_train = y_train[X_train.index]

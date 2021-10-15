@@ -23,33 +23,38 @@ class Count:
             yield Count.curr
 
 
-def iterate_reg_types(counter, res_df, out_file, nn_in):
-    if all(map(lambda q: q <= 10000, nn_in.qs)):
-        res = run_reg_nn(nn_in, 'ohe')
-        ohe_res = summarize_sim(nn_in, res, 'ohe')
-    else:
-        ohe_res = None
-        logger.warning(
-            'OHE is unreasonable for a categorical variable of over 10K levels.')
-    logger.debug('  Finished OHE.')
-    res = run_reg_nn(nn_in, 'ignore')
-    ig_res = summarize_sim(nn_in, res, 'ignore')
-    logger.debug('  Finished Ignore.')
-    res = run_reg_nn(nn_in, 'embed')
-    embed_res = summarize_sim(nn_in, res, 'embed')
-    logger.debug('  Finished Embedding.')
-    res = run_reg_nn(nn_in, 'lmm')
-    lmm_res = summarize_sim(nn_in, res, 'lmm')
-    logger.debug('  Finished LMM.')
-    res_df.loc[next(counter)] = ohe_res
-    res_df.loc[next(counter)] = lmm_res
-    res_df.loc[next(counter)] = ig_res
-    res_df.loc[next(counter)] = embed_res
-    if len(nn_in.qs) == 1 and nn_in.mode == 'intercepts':
-        res = run_reg_nn(nn_in, 'menet')
-        me_res = summarize_sim(nn_in, res, 'menet')
-        logger.debug('  Finished MeNet.')
-        res_df.loc[next(counter)] = me_res
+def iterate_reg_types(counter, res_df, out_file, nn_in, exp_types):
+    if 'ohe' in exp_types:
+        if all(map(lambda q: q <= 10000, nn_in.qs)):
+            res = run_reg_nn(nn_in, 'ohe')
+            ohe_res = summarize_sim(nn_in, res, 'ohe')
+        else:
+            ohe_res = None
+            logger.warning(
+                'OHE is unreasonable for a categorical variable of over 10K levels.')
+        res_df.loc[next(counter)] = ohe_res
+        logger.debug('  Finished OHE.')
+    if 'ignore' in exp_types:
+        res = run_reg_nn(nn_in, 'ignore')
+        ig_res = summarize_sim(nn_in, res, 'ignore')
+        res_df.loc[next(counter)] = ig_res
+        logger.debug('  Finished Ignore.')
+    if 'embeddings' in exp_types:
+        res = run_reg_nn(nn_in, 'embed')
+        embed_res = summarize_sim(nn_in, res, 'embed')
+        res_df.loc[next(counter)] = embed_res
+        logger.debug('  Finished Embedding.')
+    if 'lmmnn' in exp_types:
+        res = run_reg_nn(nn_in, 'lmm')
+        lmm_res = summarize_sim(nn_in, res, 'lmm')
+        res_df.loc[next(counter)] = lmm_res
+        logger.debug('  Finished LMM.')
+    if 'menet' in exp_types:
+        if len(nn_in.qs) == 1 and nn_in.mode == 'intercepts':
+            res = run_reg_nn(nn_in, 'menet')
+            me_res = summarize_sim(nn_in, res, 'menet')
+            res_df.loc[next(counter)] = me_res
+            logger.debug('  Finished MeNet.')
     res_df.to_csv(out_file)
 
 
@@ -138,4 +143,4 @@ def simulation(out_file, params):
                                             params['estimated_cors'], dist_matrix, params['verbose'],
                                             params['n_neurons'], params['dropout'], params['activation'], params['spatial_embed_neurons'],
                                             params['log_params'])
-                            iterate_reg_types(counter, res_df, out_file, nn_in)
+                            iterate_reg_types(counter, res_df, out_file, nn_in, params['exp_types'])

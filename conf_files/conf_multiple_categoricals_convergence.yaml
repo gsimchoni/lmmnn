@@ -42,3 +42,8 @@ epochs: 500
 patience: 10
 verbose: False
 log_params: True
+exp_types:
+  - 'lmmnn'
+  - 'ignore'
+  - 'ohe'
+  - 'embeddings'
