@@ -61,7 +61,7 @@ class EarlyStoppingWithSigmasConvergence(Callback):
         if sig2e_est is None:
             sig2e_est = 0
         self.sig_hist['sig2e'].append(sig2e_est)
-        self.sig_hist['sig2b'].append(sig2b_ests[0])
+        self.sig_hist['sig2b'].append(sig2b_ests.sum())
 
     def on_train_begin(self, logs=None):
         # The number of epoch it has waited when loss hasn't decreased.
