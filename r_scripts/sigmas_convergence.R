@@ -4,7 +4,7 @@ library(extrafont)
 font_import()
 loadfonts(device="win") 
 
-df <- read_csv("C:/Users/gsimchoni/lmmnn/res_params.csv")
+df <- read_csv("C:/Users/gsimchoni/lmmnn/results/res_params_Z.csv")
 
 df %>% count(experiment)
 
@@ -25,16 +25,19 @@ mean_profile <- df_long %>% group_by(epoch, sig2) %>%
   mutate(experiment = 0) %>%
   select(experiment, everything())
 
+max_epochs <- 45 #25 for g(Z) = ZW
+
 df_long %>%
-  filter(epoch <= 45, sig2 != "sig2e_est") %>%
+  filter(epoch <= max_epochs, sig2 != "sig2e_est") %>%
   # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
   ggplot(aes(epoch, est, color = sig2, group = interaction(experiment, sig2))) +
   geom_line(alpha = 0.4) +
-  geom_line(data = mean_profile %>% filter(epoch <= 45, sig2 != "sig2e_est"), lwd = 1.2) +
+  geom_line(data = mean_profile %>% filter(epoch <= max_epochs, sig2 != "sig2e_est"), lwd = 1.2) +
   geom_hline(yintercept = 10.0, color = "blue", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 1.0, color = "green", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 0.1, color = "red", lty = 3, lwd = 1.2) +
-  scale_y_log10() +
+  # scale_y_log10() +
+  scale_y_continuous(breaks = 10^c(-1:1)) +
   scale_color_discrete(labels = c(
     expression(paste(hat(sigma)[b[1]]^2)),
     expression(paste(hat(sigma)[b[2]]^2)),
