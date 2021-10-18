@@ -277,7 +277,9 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
 
     patience = epochs if patience is None else patience
     if Z_non_linear and mode == 'intercepts':
+        # in complex scenarios such as non-linear g(Z) consider training "more", until var components norm has converged
         callbacks = [EarlyStoppingWithSigmasConvergence(patience=patience)]
+        # callbacks = [EarlyStopping(patience=patience, monitor='val_loss')]
     else:
         callbacks = [EarlyStopping(patience=patience, monitor='val_loss')]
     if log_params:
