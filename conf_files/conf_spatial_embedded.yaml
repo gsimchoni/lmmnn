@@ -30,6 +30,9 @@ spatial_embed_neurons:
   - 100
   - 500
   - 1000
+weibull_nu:
+weibull_lambda:
+p_censor_list:
 n_neurons:
   - 100
   - 50

@@ -10,13 +10,15 @@ class LogEstParams(Callback):
         self.idx = idx
 
     def on_epoch_end(self, epoch, logs):
-        sig2e_est, sig2bs_est, rhos_est = self.model.layers[-1].get_vars()
+        sig2e_est, sig2bs_est, rhos_est, weibull_est = self.model.layers[-1].get_vars()
         logs['experiment'] = self.idx
         logs['sig2e_est'] = sig2e_est
         for k, sig2b_est in enumerate(sig2bs_est):
             logs['sig2b_est' + str(k)] = sig2b_est
         for k, rho_est in enumerate(rhos_est):
-            logs['rho_est' + str(k)] = sig2b_est
+            logs['rho_est' + str(k)] = rho_est
+        for k, weibull_est in enumerate(weibull_est):
+            logs['weibull_est' + str(k)] = weibull_est
 
 
 class PrintSigmas(Callback):

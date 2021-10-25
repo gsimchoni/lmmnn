@@ -4,6 +4,8 @@ import pandas as pd
 from scipy import sparse
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import roc_auc_score
+from tensorflow._api.v2 import random
+from lifelines.utils import concordance_index
 
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -70,7 +72,7 @@ def get_D_est(qs, sig2bs):
     return D_hat
 
 
-def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix):
+def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix, weibull_ests):
     if mode == 'intercepts':
         if Z_non_linear or len(qs) > 1:
             gZ_trains = []
@@ -186,6 +188,17 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
         A = gZ_train.T @ gZ_train / sig2e + D_inv
         b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
         b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
+    elif mode == 'survival':
+        Hs = weibull_ests[0] * (y_train ** weibull_ests[1])
+        b_hat = []
+        for i in range(qs[0]):
+            i_vec = X_train['z0'] == i
+            D_i = X_train['C0'][i_vec].sum()
+            A_i = 1 / sig2bs[0] + D_i
+            C_i = 1 / sig2bs[0] + np.sum(Hs[i_vec] * np.exp(y_pred_tr[i_vec]))
+            b_i = A_i / C_i
+            b_hat.append(b_i)
+        b_hat = np.array(b_hat)
     return b_hat
 
 
@@ -215,7 +228,8 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     y_pred = model.predict(X_test).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_rhos = [None for _ in range(len(est_cors))]
-    return y_pred, (None, none_sigmas), none_rhos, len(history.history['loss'])
+    none_weibull = [None, None]
+    return y_pred, (None, none_sigmas), none_rhos, none_weibull, len(history.history['loss'])
 
 
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
@@ -223,6 +237,8 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         log_params=False, idx=0):
     if mode == 'spatial' or mode == 'spatial_embedded':
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
+    if mode == 'survival':
+        x_cols = [x_col for x_col in x_cols if x_col not in ['C0']]
     # dmatrix_tf = tf.constant(dist_matrix)
     dmatrix_tf = dist_matrix
     X_input = Input(shape=(X_train[x_cols].shape[1],))
@@ -248,10 +264,16 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     elif mode == 'spatial_embedded':
         Z_inputs = [Input(shape=(2,))]
         n_sig2bs_init = 1
+    elif mode == 'survival':
+        z_cols = ['z0', 'C0']
+        Z_input = Input(shape=(1,), dtype=tf.int64)
+        event_input = Input(shape=(1,))
+        Z_inputs = [Z_input, event_input]
+        n_sig2bs_init = 1
     
     out_hidden = add_layers_functional(X_input, n_neurons, dropout, activation, X_train[x_cols].shape[1])
     y_pred_output = Dense(1)(out_hidden)
-    if Z_non_linear and (mode in ['intercepts', 'glmm']):
+    if Z_non_linear and (mode in ['intercepts', 'glmm', 'survival']):
         Z_nll_inputs = []
         ls = []
         for k, q in enumerate(qs):
@@ -270,7 +292,9 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         ls = None
     sig2bs_init = np.ones(n_sig2bs_init, dtype=np.float32)
     rhos_init = np.zeros(len(est_cors), dtype=np.float32)
-    nll = NLL(mode, 1.0, sig2bs_init, rhos_init, est_cors, Z_non_linear, dmatrix_tf)(y_true_input, y_pred_output, Z_nll_inputs)
+    weibull_init = np.ones(2, dtype=np.float32)
+    nll = NLL(mode, 1.0, sig2bs_init, rhos_init, weibull_init, est_cors, Z_non_linear, dmatrix_tf)(
+        y_true_input, y_pred_output, Z_nll_inputs)
     model = Model(inputs=[X_input, y_true_input] + Z_inputs, outputs=nll)
 
     model.compile(optimizer='adam')
@@ -297,11 +321,11 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
                         callbacks=callbacks, verbose=verbose, shuffle=False)
 
-    sig2e_est, sig2b_ests, rho_ests = model.layers[-1].get_vars()
+    sig2e_est, sig2b_ests, rho_ests, weibull_ests = model.layers[-1].get_vars()
     y_pred_tr = model.predict(
         [X_train[x_cols], y_train] + X_train_z_cols).reshape(X_train.shape[0])
     b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e_est, sig2b_ests,
-                Z_non_linear, model, ls, mode, rho_ests, est_cors, dist_matrix)
+                Z_non_linear, model, ls, mode, rho_ests, est_cors, dist_matrix, weibull_ests)
     dummy_y_test = np.random.normal(size=y_test.shape)
     if mode in ['intercepts', 'glmm', 'spatial']:
         if Z_non_linear or len(qs) > 1:
@@ -337,7 +361,11 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0]) + gZ_test @ b_hat
         sig2b_ests = np.concatenate([sig2b_ests, [np.nan]])
-    return y_pred, (sig2e_est, list(sig2b_ests)), list(rho_ests), len(history.history['loss'])
+    elif mode == 'survival':
+        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+                X_test.shape[0])
+        log_hazard = y_pred + np.log(b_hat[X_test['z0']])
+    return log_hazard, (sig2e_est, list(sig2b_ests)), list(rho_ests), list(weibull_ests), len(history.history['loss'])
 
 
 def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience,
@@ -377,7 +405,8 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
                            ).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_rhos = [None for _ in range(len(est_cors))]
-    return y_pred, (None, none_sigmas), none_rhos, len(history.history['loss'])
+    none_weibull = [None, None]
+    return y_pred, (None, none_sigmas), none_rhos, none_weibull, len(history.history['loss'])
 
 
 def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience,
@@ -397,31 +426,32 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
     y_pred = menet_predict(model, X_test, clusters_test, q, b_hat)
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_rhos = [None for _ in range(len(est_cors))]
-    return y_pred, (sig2e_est, none_sigmas), none_rhos, n_epochs
+    none_weibull = [None, None]
+    return y_pred, (sig2e_est, none_sigmas), none_rhos, none_weibull, n_epochs
 
 
 def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience, n_neurons, dropout, activation, reg_type,
         Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose, log_params, idx):
     start = time.time()
     if reg_type == 'ohe':
-        y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
+        y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose)
     elif reg_type == 'lmm':
-        y_pred, sigmas, rhos, n_epochs = reg_nn_lmm(
+        y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_lmm(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode,
             n_sig2bs, est_cors, dist_matrix, spatial_embed_neurons, verbose, Z_non_linear, Z_embed_dim_pct, log_params, idx)
     elif reg_type == 'ignore':
-        y_pred, sigmas, rhos, n_epochs = reg_nn_ohe_or_ignore(
+        y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose, ignore_RE=True)
     elif reg_type == 'embed':
-        y_pred, sigmas, rhos, n_epochs = reg_nn_embed(
+        y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_embed(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose)
     elif reg_type == 'menet':
-        y_pred, sigmas, rhos, n_epochs = reg_nn_menet(
+        y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_menet(
             X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, n_sig2bs, est_cors, verbose)
     else:
@@ -429,6 +459,11 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience
     end = time.time()
     if mode == 'glmm':
         metric = roc_auc_score(y_test, y_pred)
+    elif mode == 'survival':
+        if np.any(np.isnan(y_pred)):
+            metric = np.nan
+        else:
+            metric = concordance_index(y_test, -y_pred, X_test['C0'])
     else:
         metric = np.mean((y_pred - y_test)**2)
-    return NNResult(metric, sigmas, rhos, n_epochs, end - start)
+    return NNResult(metric, sigmas, rhos, weibull, n_epochs, end - start)

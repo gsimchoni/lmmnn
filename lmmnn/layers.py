@@ -8,7 +8,7 @@ import tensorflow.keras.backend as K
 class NLL(Layer):
     """Negative Log Likelihood Loss Layer"""
 
-    def __init__(self, mode, sig2e, sig2bs, rhos = [], est_cors = [], Z_non_linear=False, dist_matrix=None):
+    def __init__(self, mode, sig2e, sig2bs, rhos = [], weibull_init = [], est_cors = [], Z_non_linear=False, dist_matrix=None):
         super(NLL, self).__init__(dynamic=False)
         self.sig2bs = tf.Variable(
             sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
@@ -23,16 +23,23 @@ class NLL(Layer):
             self.rhos = tf.Variable(
                 rhos, name='rhos', constraint=lambda x: tf.clip_by_value(x, -1.0, 1.0))
             self.est_cors = est_cors
-        elif self.mode == 'glmm':
+        if self.mode == 'glmm':
             self.nGQ = 5
             self.x_ks, self.w_ks = np.polynomial.hermite.hermgauss(self.nGQ)
+        if self.mode == 'survival':
+            self.weibull_lambda = tf.Variable(
+                weibull_init[0], name='weibull_lambda', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
+            self.weibull_nu = tf.Variable(
+                weibull_init[1], name='weibull_nu', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
 
     def get_vars(self):
         if self.mode in ['intercepts', 'spatial', 'spatial_embedded']:
-            return self.sig2e.numpy(), self.sig2bs.numpy(), []
+            return self.sig2e.numpy(), self.sig2bs.numpy(), [], []
         if self.mode == 'glmm':
-            return None, self.sig2bs.numpy(), []
-        return self.sig2e.numpy(), self.sig2bs.numpy(), self.rhos.numpy()
+            return None, self.sig2bs.numpy(), [], []
+        if self.mode == 'survival':
+            return None, self.sig2bs.numpy(), [], [self.weibull_lambda.numpy(), self.weibull_nu.numpy()]
+        return self.sig2e.numpy(), self.sig2bs.numpy(), self.rhos.numpy(), []
 
     def get_table(self, Z_idx):
         Z_unique, _ = tf.unique(Z_idx)
@@ -139,12 +146,30 @@ class NLL(Layer):
             i_sum = i_sum + K.log(k_sum)
         return -i_sum
     
+    def custom_loss_survival(self, y_true, y_pred, Z_idxs):
+        N = K.shape(y_true)[0]
+        min_Z = tf.reduce_min(Z_idxs[0])
+        max_Z = tf.reduce_max(Z_idxs[0])
+        Z = self.getZ(N, Z_idxs[0], min_Z, max_Z)
+        event = Z_idxs[1]
+        Z_idx = K.squeeze(Z_idxs[0], axis=1)
+        event_sums = tf.math.segment_sum(event, Z_idx - min_Z)
+        Hs = self.weibull_lambda * tf.math.pow(y_true, self.weibull_nu)
+        hs = self.weibull_lambda * self.weibull_nu * tf.math.pow(y_true, self.weibull_nu - 1)
+        sum_exps = K.dot(K.transpose(Z), tf.multiply(Hs, tf.math.exp(y_pred)))
+        l1 = tf.reduce_sum(event_sums * tf.math.log(self.sig2bs[0]) - tf.math.lgamma(1 / self.sig2bs[0]) + tf.math.lgamma(1 / self.sig2bs[0] + event_sums))
+        l2 = tf.reduce_sum(tf.multiply(-(1 / self.sig2bs[0] + event_sums), tf.math.log(sum_exps * self.sig2bs[0] + 1)))
+        l3 = tf.reduce_sum(K.dot(K.transpose(Z), (y_pred + tf.math.log(hs)) * event))
+        return -(l1 + l2 + l3)
+    
     def compute_output_shape(self, input_shape):
         return input_shape
 
     def call(self, y_true, y_pred, Z_idxs):
         if self.mode == 'glmm':
             self.add_loss(self.custom_loss_glm(y_true, y_pred, Z_idxs))
+        elif self.mode == 'survival':
+            self.add_loss(self.custom_loss_survival(y_true, y_pred, Z_idxs))
         else:
             self.add_loss(self.custom_loss_lm(y_true, y_pred, Z_idxs))
         return y_pred
