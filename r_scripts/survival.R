@@ -95,7 +95,7 @@ for (sig2b in sig2b_list) {
           weibull_nu_est = "",
           weibull_lambda_est = "",
           n_epochs = 0,
-          time = end - start
+          time = difftime(end, start, units = "secs")[[1]]
         )
       }
     }
