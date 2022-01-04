@@ -4,6 +4,21 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 
 
+class LogEstParams(Callback):
+    def __init__(self, idx):
+        super(LogEstParams, self).__init__()
+        self.idx = idx
+
+    def on_epoch_end(self, epoch, logs):
+        sig2e_est, sig2bs_est, rhos_est = self.model.layers[-1].get_vars()
+        logs['experiment'] = self.idx
+        logs['sig2e_est'] = sig2e_est
+        for k, sig2b_est in enumerate(sig2bs_est):
+            logs['sig2b_est' + str(k)] = sig2b_est
+        for k, rho_est in enumerate(rhos_est):
+            logs['rho_est' + str(k)] = sig2b_est
+
+
 class PrintSigmas(Callback):
     """Print sigmas at each epoch end"""
     def __init__(self, print_steps = 10):
@@ -12,11 +27,11 @@ class PrintSigmas(Callback):
         self.print_steps = print_steps
 
     def on_epoch_end(self, epoch, logs=None):
-        sig2e, sig2b = self.model.layers[-1].get_vars()
+        sig2e, sig2bs, _ = self.model.layers[-1].get_vars()
         self.sig_hist['sig2e'].append(sig2e)
-        self.sig_hist['sig2b'].append(sig2b)
+        self.sig_hist['sig2b'].append(sig2bs[0])
         if (epoch + 1) % self.print_steps == 0:
-            print(' sig2e: %.2f, sig2b: %.2f' % (sig2e, sig2b))
+            print(' sig2e: %.2f, sig2b: %.2f' % (sig2e, sig2bs[0]))
 
 
 class PrintBestLoss(Callback):
@@ -42,9 +57,11 @@ class EarlyStoppingWithSigmasConvergence(Callback):
             raise ValueError('If auto_ma_thresh is False you must set ma_thresh.')
     
     def record_sigmas(self):
-        sig2e_est, sig2b_est = self.model.layers[-1].get_vars()
+        sig2e_est, sig2b_ests, _ = self.model.layers[-1].get_vars()
+        if sig2e_est is None:
+            sig2e_est = 0
         self.sig_hist['sig2e'].append(sig2e_est)
-        self.sig_hist['sig2b'].append(sig2b_est)
+        self.sig_hist['sig2b'].append(sig2b_ests.sum())
 
     def on_train_begin(self, logs=None):
         # The number of epoch it has waited when loss hasn't decreased.

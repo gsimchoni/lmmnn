@@ -1,13 +1,14 @@
 library(tidyverse)
 library(reticulate)
 library(lme4)
-
+library(pROC)
 
 setwd("C:/Users/gsimchoni/lmmnn")
 
 lmmnn_utils <- import("lmmnn.utils")
 params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
                     X_non_linear = TRUE, Z_non_linear = FALSE, Z_embed_dim_pct = 10)
+mode <- "glmm"
 sig2e <- 1.0
 sig2b_list <- c(0.1, 1.0, 10.0)
 q_list <- c(100L, 1000L, 10000L)
@@ -24,7 +25,7 @@ for (sig2b in sig2b_list) {
       counter <- counter + 1
       cat(glue::glue("  iteration: {k}"), "\n")
       py_res <- lmmnn_utils$generate_data(
-        q = q, sig2e = sig2e, sig2b = sig2b, N = N, params = params_dict)
+        mode = mode, qs = list(q), sig2e = sig2e, sig2bs = list(sig2b), N = N, rhos = list(), params = params_dict)
       X_train = py_res[[1]]
       X_test = py_res[[2]]
       y_train = py_res[[3]]
@@ -35,17 +36,16 @@ for (sig2b in sig2b_list) {
       df_test <- data.frame(y = y_test)
       df_test <- cbind(df_test, X_test)
       
-      form <- as.formula(str_c("y ~ ", str_c(str_c(str_c("X", 0:9), collapse = " + "), " + (1 | z)")))
+      form <- as.formula(str_c("y ~ ", str_c(str_c(str_c("X", 0:9), collapse = " + "), " + (1 | z0)")))
       start <- Sys.time()
-      out <- lmer(form, df_train)
+      out <- glmer(form, family = binomial, df_train)
       end <- Sys.time()
       
       sigmas <- as.data.frame(VarCorr(out))
-      sig2e_est <- sigmas[2, "vcov"]
       sig2b_est <- sigmas[1, "vcov"]
       
-      y_pred <- predict(out, df_test, allow.new.levels = TRUE)
-      mse <- mean((y_test - y_pred)^2)
+      y_pred <- predict(out, df_test, allow.new.levels = TRUE, type = "response")
+      AUC <- as.numeric(roc(y_test, y_pred)$auc)
       res_list[[counter]] <- list(
         N = N,
         sig2e = sig2e,
@@ -54,8 +54,8 @@ for (sig2b in sig2b_list) {
         deep = FALSE,
         experiment = k,
         exp_type = "lme4",
-        mse = mse,
-        sig2e_est = sig2e_est,
+        auc = AUC,
+        sig2e_est = "",
         sig2b_est = sig2b_est,
         n_epochs = 0,
         time = end - start
