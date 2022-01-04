@@ -9,12 +9,13 @@ from scipy.spatial.distance import pdist, squareform
 SimResult = namedtuple('SimResult',
                        ['N', 'sig2e', 'sig2bs', 'qs', 'deep', 'iter_id', 'exp_type', 'mse', 'sig2e_est', 'sig2b_ests', 'n_epochs', 'time'])
 
-NNResult = namedtuple('NNResult', ['metric', 'sigmas', 'rhos', 'n_epochs', 'time'])
+NNResult = namedtuple('NNResult', ['metric', 'sigmas', 'rhos', 'weibull', 'n_epochs', 'time'])
 
 NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
-                                 'N', 'qs', 'sig2e', 'sig2bs', 'rhos', 'k', 'batch', 'epochs', 'patience',
+                                 'N', 'qs', 'sig2e', 'p_censor', 'sig2bs', 'rhos', 'k', 'batch', 'epochs', 'patience',
                                  'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors',
-                                 'dist_matrix', 'verbose', 'n_neurons', 'dropout', 'activation', 'spatial_embed_neurons', 'log_params'])
+                                 'dist_matrix', 'verbose', 'n_neurons', 'dropout', 'activation', 'spatial_embed_neurons', 'log_params',
+                                 'weibull_lambda', 'weibull_nu'])
 
 def get_dummies(vec, vec_max):
     vec_size = vec.size
@@ -38,11 +39,14 @@ def get_cov_mat(sig2bs, rhos, est_cors):
     return cov_mat
 
 
-def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
+def generate_data(mode, qs, sig2e, sig2bs, N, rhos, p_censor, params):
     n_fixed_effects = params['n_fixed_effects']
     X = np.random.uniform(-1, 1, N * n_fixed_effects).reshape((N, n_fixed_effects))
     betas = np.ones(n_fixed_effects)
-    Xbeta = params['fixed_intercept'] + X @ betas
+    if mode == 'survival':
+        Xbeta = X @ betas
+    else:
+        Xbeta = params['fixed_intercept'] + X @ betas
     dist_matrix = None
     if params['X_non_linear']:
         fX = Xbeta * np.cos(Xbeta) + 2 * X[:, 0] * X[:, 1]
@@ -116,6 +120,27 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, params):
     if mode == 'glmm':
         p = np.exp(y)/(1 + np.exp(y))
         y = np.random.binomial(1, p, size=N)
+    if mode == 'survival': # len(qs) should be 1
+        fs = np.random.poisson(params['n_per_cat'], qs[0]) + 1
+        fs_sum = fs.sum()
+        ps = fs / fs_sum
+        ns = np.random.multinomial(N, ps)
+        Z_idx = np.repeat(range(qs[0]), ns)
+        if params['Z_non_linear']:
+            Z = get_dummies(Z_idx, qs[0])
+            l = int(qs[0] * params['Z_embed_dim_pct'] / 100.0)
+            b = np.random.gamma(1 / sig2bs[0], sig2bs[0], l)
+            W = np.random.uniform(-1, 1, qs[0] * l).reshape((qs[0], l))
+            gZb = Z @ W @ b
+        else:
+            b = np.random.gamma(1 / sig2bs[0], sig2bs[0], qs[0])
+            gZb = np.repeat(b, ns)
+        y = (-np.log(np.random.uniform(size = N)) / (params['weibull_lambda'] * np.exp(fX) * gZb)) ** (1 / params['weibull_nu'])
+        y = np.clip(y, None, 1e+15)
+        cens = np.random.binomial(1, p_censor / 100.0, size = N)
+        df['z0'] = Z_idx
+        df['C0'] = 1 - cens
+        x_cols.extend(['C0'])
     df['y'] = y
     X_train, X_test, y_train, y_test = train_test_split(
         df.drop('y', axis=1), df['y'], test_size=0.2)

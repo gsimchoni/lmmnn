@@ -73,8 +73,13 @@ def summarize_sim(nn_in, res, reg_type):
         spatial_embed_out_dim = []
     else:
         spatial_embed_out_dim = [nn_in.spatial_embed_neurons[-1]]
-    res = [nn_in.mode, nn_in.N, nn_in.sig2e] + list(nn_in.sig2bs) + list(nn_in.qs) + list(nn_in.rhos) + spatial_embed_out_dim +\
-        [nn_in.k, reg_type, res.metric, res.sigmas[0]] + res.sigmas[1] + res.rhos +\
+    if nn_in.weibull_lambda is None:
+        weibull_params = []
+    else:
+        weibull_params = [nn_in.p_censor, nn_in.weibull_lambda, nn_in.weibull_nu]
+    res = [nn_in.mode, nn_in.N, nn_in.sig2e] + list(nn_in.sig2bs) + list(nn_in.qs) + \
+        weibull_params + list(nn_in.rhos) + spatial_embed_out_dim +\
+        [nn_in.k, reg_type, res.metric, res.sigmas[0]] + res.sigmas[1] + res.rhos + res.weibull +\
         [res.n_epochs, res.time]
     return res
 
@@ -87,36 +92,43 @@ def simulation(out_file, params):
     estimated_cors = params['estimated_cors']
     mode = params['mode']
     spatial_embed_out_dim_name = []
+    p_censor_name = []
+    p_censor_list = [0.0]
+    weibull_nu_name = []
+    weibull_lambda_name = []
+    weibull_nu_est_name = []
+    weibull_lambda_est_name = []
+    rhos_names =  []
+    rhos_est_names =  []
+    metric = 'mse'
     if mode == 'intercepts':
         assert n_sig2bs == n_categoricals
-        rhos_names =  []
-        rhos_est_names =  []
-        metric = 'mse'
     elif mode == 'slopes':
         assert n_categoricals == 1
         assert n_rhos == len(estimated_cors)
         rhos_names =  list(map(lambda x: 'rho' + str(x), range(n_rhos)))
         rhos_est_names =  list(map(lambda x: 'rho_est' + str(x), range(n_rhos)))
-        metric = 'mse'
     elif mode == 'glmm':
         assert n_categoricals == 1
         assert n_sig2bs == n_categoricals
-        rhos_names =  []
-        rhos_est_names =  []
         metric = 'auc'
     elif mode == 'spatial':
         assert n_categoricals == 1
         assert n_sig2bs == 2
-        rhos_names =  []
-        rhos_est_names =  []
-        metric = 'mse'
     elif mode == 'spatial_embedded':
         assert n_categoricals == 1
         assert n_sig2bs == 2
-        rhos_names =  []
-        rhos_est_names =  []
-        metric = 'mse'
         spatial_embed_out_dim_name = ['spatial_embed_out_dim']
+    elif mode == 'survival':
+        assert n_categoricals == 1
+        assert n_sig2bs == n_categoricals
+        metric = 'concordance'
+        p_censor_name = ['p_censor']
+        weibull_nu_name = ['weibull_nu']
+        weibull_lambda_name = ['weibull_lambda']
+        weibull_nu_est_name = ['weibull_nu_est']
+        weibull_lambda_est_name = ['weibull_lambda_est']
+        p_censor_list = params['p_censor_list']
     else:
         raise ValueError('Unknown mode')
     qs_names =  list(map(lambda x: 'q' + str(x), range(n_categoricals)))
@@ -124,23 +136,26 @@ def simulation(out_file, params):
     sig2bs_est_names =  list(map(lambda x: 'sig2b_est' + str(x), range(n_sig2bs)))
     
     res_df = pd.DataFrame(columns=['mode', 'N', 'sig2e'] + sig2bs_names + qs_names + rhos_names +
-        spatial_embed_out_dim_name + ['experiment', 'exp_type', metric, 'sig2e_est'] +
-        sig2bs_est_names + rhos_est_names + ['n_epochs', 'time'])
+        spatial_embed_out_dim_name + p_censor_name + weibull_nu_name + weibull_lambda_name +
+        ['experiment', 'exp_type', metric, 'sig2e_est'] +
+        sig2bs_est_names + rhos_est_names + weibull_nu_est_name + weibull_lambda_est_name + ['n_epochs', 'time'])
     for N in params['N_list']:
         for sig2e in params['sig2e_list']:
             for qs in product(*params['q_list']):
                 for sig2bs in product(*params['sig2b_list']):
                     for rhos in product(*params['rho_list']):
-                        logger.info('mode: %s, N: %d, sig2e: %.2f; sig2bs: [%s]; qs: [%s]; rhos: [%s]' %
-                                    (mode, N, sig2e, ', '.join(map(str, sig2bs)), ', '.join(map(str, qs)), ', '.join(map(str, rhos))))
-                        for k in range(params['n_iter']):
-                            X_train, X_test, y_train, y_test, x_cols, dist_matrix = generate_data(
-                                mode, qs, sig2e, sig2bs, N, rhos, params)
-                            logger.info(' iteration: %d' % k)
-                            nn_in = NNInput(X_train, X_test, y_train, y_test, x_cols, N, qs, sig2e,
-                                            sig2bs, rhos, k, params['batch'], params['epochs'], params['patience'],
-                                            params['Z_non_linear'], params['Z_embed_dim_pct'], mode, n_sig2bs,
-                                            params['estimated_cors'], dist_matrix, params['verbose'],
-                                            params['n_neurons'], params['dropout'], params['activation'], params['spatial_embed_neurons'],
-                                            params['log_params'])
-                            iterate_reg_types(counter, res_df, out_file, nn_in, params['exp_types'])
+                        for p_censor in p_censor_list:
+                            logger.info('mode: %s, N: %d, sig2e: %.2f; sig2bs: [%s]; qs: [%s]; rhos: [%s], p_censor: %.2f' %
+                                        (mode, N, sig2e, ', '.join(map(str, sig2bs)), ', '.join(map(str, qs)), ', '.join(map(str, rhos)), p_censor))
+                            for k in range(params['n_iter']):
+                                X_train, X_test, y_train, y_test, x_cols, dist_matrix = generate_data(
+                                    mode, qs, sig2e, sig2bs, N, rhos, p_censor, params)
+                                logger.info(' iteration: %d' % k)
+                                nn_in = NNInput(X_train, X_test, y_train, y_test, x_cols, N, qs, sig2e, p_censor,
+                                                sig2bs, rhos, k, params['batch'], params['epochs'], params['patience'],
+                                                params['Z_non_linear'], params['Z_embed_dim_pct'], mode, n_sig2bs,
+                                                params['estimated_cors'], dist_matrix, params['verbose'],
+                                                params['n_neurons'], params['dropout'], params['activation'],
+                                                params['spatial_embed_neurons'], params['log_params'],
+                                                params['weibull_lambda'], params['weibull_nu'])
+                                iterate_reg_types(counter, res_df, out_file, nn_in, params['exp_types'])
