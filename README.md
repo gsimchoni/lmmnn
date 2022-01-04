@@ -2,9 +2,9 @@
 
 ## Using Random Effects to Account for High-Cardinality Categorical Features and Repeated Measures in Deep Neural Networks
 
-This is the working directory for our Neurips 2021 submission.
+This is the working directory for our Neurips 2021 [paper](https://papers.nips.cc/paper/2021/hash/d35b05a832e2bb91f110d54e34e2da79-Abstract.html).
 
-For full details see the paper and lmmnn_neurips2021_additional_material.pdf.
+For full implementation details see the paper and supplemental.
 
 For running the simulations use the `simulate.py` file, like so:
 
@@ -12,7 +12,7 @@ For running the simulations use the `simulate.py` file, like so:
 python simulate.py --conf conf_files/conf_random_intercepts.yaml --out res.csv
 ```
 
-The `--conf` attribute accepts a yaml file such as `conf.yaml` which you can change.
+The `--conf` attribute accepts a yaml file such as `conf_random_intercepts.yaml` which you can change.
 
 To run various real data experiments see the jupyter notebooks in the notebooks folder. We cannot unfortunately attach the actual datasets, see paper for details.
 
