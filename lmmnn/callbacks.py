@@ -59,7 +59,7 @@ class EarlyStoppingWithSigmasConvergence(Callback):
             raise ValueError('If auto_ma_thresh is False you must set ma_thresh.')
     
     def record_sigmas(self):
-        sig2e_est, sig2b_ests, _ = self.model.layers[-1].get_vars()
+        sig2e_est, sig2b_ests, _, _ = self.model.layers[-1].get_vars()
         if sig2e_est is None:
             sig2e_est = 0
         self.sig_hist['sig2e'].append(sig2e_est)
