@@ -364,8 +364,8 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     elif mode == 'survival':
         y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0])
-        log_hazard = y_pred + np.log(b_hat[X_test['z0']])
-    return log_hazard, (sig2e_est, list(sig2b_ests)), list(rho_ests), list(weibull_ests), len(history.history['loss'])
+        y_pred = y_pred + np.log(b_hat[X_test['z0']])
+    return y_pred, (sig2e_est, list(sig2b_ests)), list(rho_ests), list(weibull_ests), len(history.history['loss'])
 
 
 def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience,
