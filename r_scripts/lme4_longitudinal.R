@@ -30,7 +30,7 @@ for (sig2b0 in sig2b_list[[1]]) {
           cat(glue::glue("  iteration: {k}"), "\n")
           py_res <- lmmnn_utils$generate_data(
             mode = mode, qs = list(q0), sig2e = sig2e, sig2bs = list(sig2b0, sig2b1, sig2b2),
-            N = N, rhos = rhos_list, params = params_dict)
+            N = N, rhos = rhos_list, p_censor = list(), params = params_dict)
           X_train = py_res[[1]]
           X_test = py_res[[2]]
           y_train = py_res[[3]]
