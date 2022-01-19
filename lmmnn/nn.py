@@ -347,7 +347,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
         y_true_input, y_pred_output, Z_nll_inputs)
     model = Model(inputs=[X_input, y_true_input] + Z_inputs, outputs=nll)
 
-    if calc_grad and mode == 'intercepts':
+    if calc_grad and mode in ['intercepts', 'spatial']:
         model.compile(optimizer='adam', run_eagerly=True)
     else:
         model.compile(optimizer='adam')
