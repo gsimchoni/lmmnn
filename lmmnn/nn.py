@@ -5,7 +5,10 @@ from scipy import sparse
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import roc_auc_score
 from tensorflow._api.v2 import random
-from lifelines.utils import concordance_index
+try:
+    from lifelines.utils import concordance_index
+except Exception:
+    pass
 
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
