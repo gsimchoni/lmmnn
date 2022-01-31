@@ -798,3 +798,260 @@ p + plot_annotation(title = "Five categorical, g(Z) = ZW",
                                                sigma[b[5]]^2, " = ", 5, ", ")),
                     theme = theme(text = element_text(family = "Century", size = 16),
                                   plot.title = element_text(hjust = 0.5)))
+
+##############
+
+df <- read_csv("C:/Users/gsimchoni/Documents/res_params_ukb_bp_spatial_lmm_100K_grads.csv")
+# df <- df %>% slice(248:n())
+df %>% count(experiment)
+
+df_long <- df %>% pivot_longer(contains("grad"), "sig2", values_to = "grad") %>%
+  mutate(epoch = epoch + 1) %>%
+  filter(sig2 != "sig2e_grad") %>%
+  bind_rows(
+    tibble(
+      epoch = 0, experiment = rep(0:4, each = 2), loss = 0, val_loss = 0,
+      sig2 = rep(c("sig2b_grad0", "sig2b_grad1"), 5),
+      est = 1
+    )
+  )
+
+mean_profile <- df_long %>% group_by(epoch, sig2) %>%
+  summarise(grad = mean(grad)) %>%
+  mutate(experiment = 0) %>%
+  select(experiment, everything())
+
+max_epochs <- 10
+min_y <- -10
+max_y <- 10
+q <- 10000
+
+p2 <- df_long %>%
+  filter(epoch <= max_epochs) %>%
+  ggplot(aes(epoch, grad, color = sig2, group = interaction(experiment, sig2))) +
+  geom_line(alpha = 0.4) +
+  geom_line(data = mean_profile %>% filter(epoch <= max_epochs), lwd = 1.2) +
+  geom_hline(yintercept = 0, color = "black", lty = 3, lwd = 1.2) +
+  # scale_y_continuous(breaks = c(-15, -10, -5, 0, 5, 10), limits = c(min_y, max_y)) +
+  scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
+  scale_color_discrete(labels = c(
+    expression(paste("  ", nabla, sigma[b[1]]^2)),
+    expression(paste("  ", nabla, sigma[b[2]]^2)))) +
+  labs(y = NULL, color = NULL, x = NULL, title = "Gradients") +
+  theme_bw() +
+  theme(legend.position = "left",
+        text = element_text(family = "Century", size = 14),
+        plot.title = element_text(hjust = 0, size = 14),
+        axis.text.x = element_blank())
+
+
+df_long <- df %>% pivot_longer(contains("est"), "sig2", values_to = "est") %>%
+  mutate(epoch = epoch + 1) %>%
+  bind_rows(
+    tibble(
+      epoch = 0, experiment = rep(0:4, each = 2), loss = 0, val_loss = 0,
+      sig2 = rep(c("sig2b_est0", "sig2b_est1"), 5),
+      est = 1
+    )
+  )
+mean_profile <- df_long %>% group_by(epoch, sig2) %>%
+  summarise(est = mean(est)) %>%
+  mutate(experiment = 0) %>%
+  select(experiment, everything())
+
+# max_epochs <- 30
+max_y <- 5
+
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+
+cols <- gg_color_hue(2)
+
+p1 <- df_long %>%
+  filter(epoch <= max_epochs, sig2 != "sig2e_est") %>%
+  # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
+  ggplot(aes(epoch, est, color = sig2, group = interaction(experiment, sig2))) +
+  geom_line(alpha = 0.4) +
+  geom_line(data = mean_profile %>% filter(epoch <= max_epochs, sig2 != "sig2e_est"), lwd = 1.2) +
+  # geom_hline(yintercept = 1.0, color = cols[1], lty = 3, lwd = 1.2) +
+  # geom_hline(yintercept = 2.0, color = cols[2], lty = 3, lwd = 1.2) +
+  # scale_y_log10() +
+  scale_y_continuous(breaks = c(-1, 0, 1, 2, 3)) +
+  scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
+  scale_color_discrete(labels = c(
+    expression(paste("  ", nabla, sigma[b[1]]^2)),
+    expression(paste("  ", nabla, sigma[b[2]]^2)),
+    expression(paste("  ", nabla, sigma[b[3]]^2)),
+    expression(paste("  ", nabla, sigma[b[4]]^2)),
+    expression(paste("  ", nabla, sigma[b[5]]^2)))) +
+  labs(y = NULL, color = NULL, x = NULL,
+       title = "Estimates") +
+  theme_bw() +
+  theme(legend.position = "left",
+        text = element_text(family = "Century", size = 14),
+        plot.title = element_text(hjust = 0, size = 14),
+        axis.text.x = element_blank())
+
+
+df_long <- df %>% pivot_longer(contains("loss"), "type", values_to = "loss")
+
+mean_profile <- df_long %>% group_by(epoch, type) %>%
+  summarise(loss = mean(loss)) %>%
+  mutate(experiment = 0) %>%
+  select(experiment, everything())
+
+p3 <- df_long %>%
+  filter(epoch <= max_epochs) %>%
+  # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
+  ggplot(aes(epoch, loss, color = type, group = interaction(experiment, type))) +
+  geom_line(alpha = 0.4) +
+  geom_line(data = mean_profile %>% filter(epoch <= max_epochs), lwd = 1.2) +
+  # geom_hline(yintercept = 0, color = "black", lty = 3, lwd = 1.2) +
+  # scale_y_log10() +
+  # scale_y_continuous(breaks = 10^c(-1:1), limits = c(0, max_y)) +
+  scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
+  scale_color_manual(labels = c("train", "val"), values = c("yellow", "purple")) +
+  labs(y = NULL, color = NULL, title = "Loss") +
+  theme_bw() +
+  theme(legend.position = "left",
+        text = element_text(family = "Century", size = 14),
+        plot.title = element_text(hjust = 0, size = 14))
+
+p <- p1 / p2 / p3 
+p + plot_annotation(title = "UKB SBP Spatial, RBF Kernel, Data not sorted, g(Z) = Z",
+                    caption = expression(paste("n = 100,000; ", " q = ", 1000, ", ",
+                                               sigma[b[1]]^2, " = ", 1, ", ",
+                                               sigma[b[2]]^2, " = ", 2, ", ")),
+                    theme = theme(text = element_text(family = "Century", size = 16),
+                                  plot.title = element_text(hjust = 0.5)))
+
+#####
+
+# 4 ITERATIONS
+df <- read_csv("C:/Users/gsimchoni/Documents/res_params_ukb_bp_spatial_lmm_100K_grads_sorted_4it.csv")
+# df <- df %>% slice(248:n())
+df %>% count(experiment)
+
+df_long <- df %>% pivot_longer(contains("grad"), "sig2", values_to = "grad") %>%
+  mutate(epoch = epoch + 1) %>%
+  filter(sig2 != "sig2e_grad") %>%
+  bind_rows(
+    tibble(
+      epoch = 0, experiment = rep(0:3, each = 2), loss = 0, val_loss = 0,
+      sig2 = rep(c("sig2b_grad0", "sig2b_grad1"), 4),
+      est = 1
+    )
+  )
+
+mean_profile <- df_long %>% group_by(epoch, sig2) %>%
+  summarise(grad = mean(grad)) %>%
+  mutate(experiment = 0) %>%
+  select(experiment, everything())
+
+max_epochs <- 10
+min_y <- -5
+max_y <- 8
+q <- 10000
+
+p2 <- df_long %>%
+  filter(epoch <= max_epochs) %>%
+  ggplot(aes(epoch, grad, color = sig2, group = interaction(experiment, sig2))) +
+  geom_line(alpha = 0.4) +
+  geom_line(data = mean_profile %>% filter(epoch <= max_epochs), lwd = 1.2) +
+  geom_hline(yintercept = 0, color = "black", lty = 3, lwd = 1.2) +
+  scale_y_continuous(breaks = c(-5, 0, 5, 8), limits = c(min_y, max_y)) +
+  scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
+  scale_color_discrete(labels = c(
+    expression(paste("  ", nabla, sigma[b[1]]^2)),
+    expression(paste("  ", nabla, sigma[b[2]]^2)))) +
+  labs(y = NULL, color = NULL, x = NULL, title = "Gradients") +
+  theme_bw() +
+  theme(legend.position = "left",
+        text = element_text(family = "Century", size = 14),
+        plot.title = element_text(hjust = 0, size = 14),
+        axis.text.x = element_blank())
+
+
+df_long <- df %>% pivot_longer(contains("est"), "sig2", values_to = "est") %>%
+  mutate(epoch = epoch + 1) %>%
+  bind_rows(
+    tibble(
+      epoch = 0, experiment = rep(0:3, each = 2), loss = 0, val_loss = 0,
+      sig2 = rep(c("sig2b_est0", "sig2b_est1"), 4),
+      est = 1
+    )
+  )
+mean_profile <- df_long %>% group_by(epoch, sig2) %>%
+  summarise(est = mean(est)) %>%
+  mutate(experiment = 0) %>%
+  select(experiment, everything())
+
+# max_epochs <- 30
+max_y <- 5
+
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+
+cols <- gg_color_hue(2)
+
+p1 <- df_long %>%
+  filter(epoch <= max_epochs, sig2 != "sig2e_est") %>%
+  # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
+  ggplot(aes(epoch, est, color = sig2, group = interaction(experiment, sig2))) +
+  geom_line(alpha = 0.4) +
+  geom_line(data = mean_profile %>% filter(epoch <= max_epochs, sig2 != "sig2e_est"), lwd = 1.2) +
+  # geom_hline(yintercept = 1.0, color = cols[1], lty = 3, lwd = 1.2) +
+  # geom_hline(yintercept = 2.0, color = cols[2], lty = 3, lwd = 1.2) +
+  # scale_y_log10() +
+  scale_y_continuous(breaks = c(-1, 0, 1, 2, 3)) +
+  scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
+  scale_color_discrete(labels = c(
+    expression(paste("  ", nabla, sigma[b[1]]^2)),
+    expression(paste("  ", nabla, sigma[b[2]]^2)),
+    expression(paste("  ", nabla, sigma[b[3]]^2)),
+    expression(paste("  ", nabla, sigma[b[4]]^2)),
+    expression(paste("  ", nabla, sigma[b[5]]^2)))) +
+  labs(y = NULL, color = NULL, x = NULL,
+       title = "Estimates") +
+  theme_bw() +
+  theme(legend.position = "left",
+        text = element_text(family = "Century", size = 14),
+        plot.title = element_text(hjust = 0, size = 14),
+        axis.text.x = element_blank())
+
+
+df_long <- df %>% pivot_longer(contains("loss"), "type", values_to = "loss")
+
+mean_profile <- df_long %>% group_by(epoch, type) %>%
+  summarise(loss = mean(loss)) %>%
+  mutate(experiment = 0) %>%
+  select(experiment, everything())
+
+p3 <- df_long %>%
+  filter(epoch <= max_epochs) %>%
+  # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
+  ggplot(aes(epoch, loss, color = type, group = interaction(experiment, type))) +
+  geom_line(alpha = 0.4) +
+  geom_line(data = mean_profile %>% filter(epoch <= max_epochs), lwd = 1.2) +
+  # geom_hline(yintercept = 0, color = "black", lty = 3, lwd = 1.2) +
+  # scale_y_log10() +
+  # scale_y_continuous(breaks = 10^c(-1:1), limits = c(0, max_y)) +
+  scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
+  scale_color_manual(labels = c("train", "val"), values = c("yellow", "purple")) +
+  labs(y = NULL, color = NULL, title = "Loss") +
+  theme_bw() +
+  theme(legend.position = "left",
+        text = element_text(family = "Century", size = 14),
+        plot.title = element_text(hjust = 0, size = 14))
+
+p <- p1 / p2 / p3 
+p + plot_annotation(title = "UKB SBP Spatial, RBF Kernel, Data sorted, g(Z) = Z",
+                    caption = expression(paste("n = 100,000; ", " q = ", 1000, ", ",
+                                               sigma[b[1]]^2, " = ", 1, ", ",
+                                               sigma[b[2]]^2, " = ", 2, ", ")),
+                    theme = theme(text = element_text(family = "Century", size = 16),
+                                  plot.title = element_text(hjust = 0.5)))
