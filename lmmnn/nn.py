@@ -75,6 +75,7 @@ def get_D_est(qs, sig2bs):
 
 
 def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix, weibull_ests):
+    experimental = False
     if mode == 'intercepts':
         if Z_non_linear or len(qs) > 1:
             gZ_trains = []
@@ -95,10 +96,19 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
                 gZ_train = sparse.csr_matrix(np.hstack(gZ_trains))
                 n_cats = qs
                 samp = np.arange(X_train.shape[0])
-            D_inv = get_D_est(n_cats, 1 / sig2bs)
-            A = gZ_train.T @ gZ_train / sig2e + D_inv
-            b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
-            b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
+                if not experimental and X_train.shape[0] > 10000:
+                        samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+            if not experimental:
+                gZ_train = gZ_train[samp]
+                D = get_D_est(n_cats, sig2bs)
+                V = gZ_train @ D @ gZ_train.T + np.eye(gZ_train.shape[0]) * sig2e
+                V_inv_y = np.linalg.inv(V) @ (y_train.values[samp] - y_pred_tr[samp])
+                b_hat = D @ gZ_train.T @ V_inv_y
+            else:
+                D_inv = get_D_est(n_cats, 1 / sig2bs)
+                A = gZ_train.T @ gZ_train / sig2e + D_inv
+                b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
+                b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
         else:
             b_hat = []
             for i in range(qs[0]):
@@ -230,7 +240,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     y_pred = model.predict(X_test).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_rhos = [None for _ in range(len(est_cors))]
-    none_weibull = [None, None]
+    none_weibull = [None, None] if mode == 'survival' else []
     return y_pred, (None, none_sigmas), none_rhos, none_weibull, len(history.history['loss'])
 
 
@@ -407,12 +417,12 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
                            ).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_rhos = [None for _ in range(len(est_cors))]
-    none_weibull = [None, None]
+    none_weibull = [None, None] if mode == 'survival' else []
     return y_pred, (None, none_sigmas), none_rhos, none_weibull, len(history.history['loss'])
 
 
 def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs, patience,
-        n_neurons, dropout, activation, n_sig2bs, est_cors, verbose=False):
+        n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose=False):
     clusters_train, clusters_test = X_train['z0'].values, X_test['z0'].values
     X_train, X_test = X_train[x_cols].values, X_test[x_cols].values
     y_train, y_test = y_train.values, y_test.values
@@ -428,7 +438,7 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
     y_pred = menet_predict(model, X_test, clusters_test, q, b_hat)
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_rhos = [None for _ in range(len(est_cors))]
-    none_weibull = [None, None]
+    none_weibull = [None, None] if mode == 'survival' else []
     return y_pred, (sig2e_est, none_sigmas), none_rhos, none_weibull, n_epochs
 
 
@@ -455,7 +465,7 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience
     elif reg_type == 'menet':
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_menet(
             X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience,
-            n_neurons, dropout, activation, n_sig2bs, est_cors, verbose)
+            n_neurons, dropout, activation, mode, n_sig2bs, est_cors, verbose)
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
