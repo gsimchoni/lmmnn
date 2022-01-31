@@ -101,6 +101,8 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, p_censor, params):
         x_cols.append('t')
     elif mode == 'spatial' or mode == 'spatial_embedded': # len(qs) should be 1
         coords = np.stack([np.random.uniform(-10, 10, qs[0]), np.random.uniform(-10, 10, qs[0])], axis=1)
+        # ind = np.lexsort((coords[:, 1], coords[:, 0]))    
+        # coords = coords[ind]
         dist_matrix = squareform(pdist(coords)) ** 2
         D = sig2bs[0] * np.exp(-dist_matrix / (2 * sig2bs[1]))
         b = np.random.multivariate_normal(np.zeros(qs[0]), D, 1)[0]
