@@ -90,7 +90,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
                     samp = np.random.choice(X_train.shape[0], 10000, replace=False)
                 else:
                     samp = np.arange(X_train.shape[0])
-                gZ_train = np.hstack(gZ_trains)[samp]
+                gZ_train = np.hstack(gZ_trains)
                 n_cats = ls
             else:
                 gZ_train = sparse.csr_matrix(np.hstack(gZ_trains))
@@ -98,8 +98,8 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
                 samp = np.arange(X_train.shape[0])
                 if not experimental and X_train.shape[0] > 10000:
                         samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+            gZ_train = gZ_train[samp]
             if not experimental:
-                gZ_train = gZ_train[samp]
                 D = get_D_est(n_cats, sig2bs)
                 V = gZ_train @ D @ gZ_train.T + np.eye(gZ_train.shape[0]) * sig2e
                 V_inv_y = np.linalg.inv(V) @ (y_train.values[samp] - y_pred_tr[samp])
