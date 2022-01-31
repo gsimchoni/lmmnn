@@ -2,7 +2,6 @@ import time
 import numpy as np
 import pandas as pd
 from scipy import sparse
-from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import roc_auc_score
 from tensorflow._api.v2 import random
 try:
