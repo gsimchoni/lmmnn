@@ -2,7 +2,7 @@ mode: 'spatial_embedded'
 estimated_cors: []
 sig2e_list:
   - 1.0
-sig2b_list:
+sig2b_spatial_list:
   -
     - 0.1
     - 1.0
@@ -11,11 +11,12 @@ sig2b_list:
     - 0.1
     - 1.0
     - 10.0
-q_list:
-  -
+sig2b_list: []
+q_spatial_list:
     - 100
     - 1000
     - 10000
+q_list: []
 rho_list: []
 N_list:
   - 100000

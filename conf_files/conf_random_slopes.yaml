@@ -32,6 +32,8 @@ spatial_embed_neurons:
 weibull_nu:
 weibull_lambda:
 p_censor_list:
+sig2b_spatial_list: []
+q_spatial_list: []
 n_neurons:
   - 100
   - 50
