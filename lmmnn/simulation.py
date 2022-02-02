@@ -142,6 +142,7 @@ def simulation(out_file, params):
         assert n_sig2bs == 0
         assert n_sig2bs_spatial == 2
         sig2bs_spatial_names = ['sig2b0_spatial', 'sig2b1_spatial']
+        sig2bs_spatial_est_names = ['sig2b_spatial_est0', 'sig2b_spatial_est1']
         spatial_embed_out_dim_name = ['spatial_embed_out_dim']
         q_spatial_name = ['q_spatial']
         q_spatial_list = params['q_spatial_list']

@@ -197,7 +197,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
             samp = np.arange(X_train.shape[0])
         gZ_train = gZ_train[samp]
         n_cats = ls
-        D_inv = get_D_est(n_cats, 1 / sig2bs)
+        D_inv = get_D_est(n_cats, 1 / sig2bs_spatial)
         A = gZ_train.T @ gZ_train / sig2e + D_inv
         b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
         b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
@@ -341,7 +341,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
                         callbacks=callbacks, verbose=verbose, shuffle=False)
 
     sig2e_est, sig2b_ests, rho_ests, weibull_ests = model.layers[-1].get_vars()
-    if mode == 'spatial':
+    if mode in ['spatial', 'spatial_embedded']:
         sig2b_spatial_ests = sig2b_ests
         sig2b_ests = []
     elif mode == 'spatial_and_categoricals':
@@ -387,7 +387,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
         gZ_test = last_layer.predict(X_test_z_cols)
         y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0]) + gZ_test @ b_hat
-        sig2b_ests = np.concatenate([sig2b_ests, [np.nan]])
+        sig2b_spatial_ests = np.concatenate([sig2b_spatial_ests, [np.nan]])
     elif mode == 'survival':
         y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0])
