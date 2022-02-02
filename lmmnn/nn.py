@@ -74,7 +74,8 @@ def get_D_est(qs, sig2bs):
     return D_hat
 
 
-def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix, weibull_ests):
+def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs_spatial,
+    Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix, weibull_ests):
     experimental = False
     if mode == 'intercepts':
         if Z_non_linear or len(qs) > 1:
@@ -170,9 +171,9 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs, Z_non_linear, mod
                 b_hat_denominators.append(1)
         b_hat = np.array(b_hat_numerators) / np.array(b_hat_denominators)
     elif mode == 'spatial':
-        gZ_train = get_dummies(X_train['z0'].values, qs[0])
+        gZ_train = get_dummies(X_train['z0'].values, q_spatial)
         gZ_train = sparse.csr_matrix(gZ_train)
-        D = sig2bs[0] * np.exp(-dist_matrix / (2 * sig2bs[1]))
+        D = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
         N = gZ_train.shape[0]
         if X_train.shape[0] > 10000:
             samp = np.random.choice(X_train.shape[0], 10000, replace=False)
@@ -246,10 +247,10 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     return y_pred, (None, none_sigmas, none_sigmas_spatial), none_rhos, none_weibull, len(history.history['loss'])
 
 
-def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
+def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
         mode, n_sig2bs, n_sig2bs_spatial, est_cors, dist_matrix, spatial_embed_neurons,
         verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False, idx=0):
-    if mode == 'spatial' or mode == 'spatial_embedded':
+    if mode in ['spatial', 'spatial_embedded', 'spatial_and_categoricals']:
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     if mode == 'survival':
         x_cols = [x_col for x_col in x_cols if x_col not in ['C0']]
@@ -257,14 +258,18 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     dmatrix_tf = dist_matrix
     X_input = Input(shape=(X_train[x_cols].shape[1],))
     y_true_input = Input(shape=(1,))
-    if mode in ['intercepts', 'glmm', 'spatial']:
+    if mode in ['intercepts', 'glmm', 'spatial', 'spatial_and_categoricals']:
         z_cols = X_train.columns[X_train.columns.str.startswith('z')].tolist()
         Z_inputs = []
-        n_RE_inputs = len(qs)
         if mode == 'spatial':
-            n_sig2bs_init = n_sig2bs
+            n_sig2bs_init = n_sig2bs_spatial
+            n_RE_inputs = 1
+        elif mode == 'spatial_and_categoricals':
+            n_sig2bs_init = n_sig2bs_spatial + len(qs)
+            n_RE_inputs = 1 + len(qs)
         else:
             n_sig2bs_init = len(qs)
+            n_RE_inputs = len(qs)
         for _ in range(n_RE_inputs):
             Z_input = Input(shape=(1,), dtype=tf.int64)
             Z_inputs.append(Z_input)
@@ -336,9 +341,17 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
                         callbacks=callbacks, verbose=verbose, shuffle=False)
 
     sig2e_est, sig2b_ests, rho_ests, weibull_ests = model.layers[-1].get_vars()
+    if mode == 'spatial':
+        sig2b_spatial_ests = sig2b_ests
+        sig2b_ests = []
+    elif mode == 'spatial_and_categoricals':
+        sig2b_spatial_ests = sig2b_ests[:2]
+        sig2b_ests = sig2b_ests[2:]
+    else:
+        sig2b_spatial_ests = []
     y_pred_tr = model.predict(
         [X_train[x_cols], y_train] + X_train_z_cols).reshape(X_train.shape[0])
-    b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, sig2e_est, sig2b_ests,
+    b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e_est, sig2b_ests, sig2b_spatial_ests,
                 Z_non_linear, model, ls, mode, rho_ests, est_cors, dist_matrix, weibull_ests)
     dummy_y_test = np.random.normal(size=y_test.shape)
     if mode in ['intercepts', 'glmm', 'spatial']:
@@ -379,7 +392,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0])
         y_pred = y_pred + np.log(b_hat[X_test['z0']])
-    return y_pred, (sig2e_est, list(sig2b_ests)), list(rho_ests), list(weibull_ests), len(history.history['loss'])
+    return y_pred, (sig2e_est, list(sig2b_ests), list(sig2b_spatial_ests)), list(rho_ests), list(weibull_ests), len(history.history['loss'])
 
 
 def reg_nn_embed(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_size, epochs, patience,
@@ -443,9 +456,10 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
                                                 patience, verbose=verbose)
     y_pred = menet_predict(model, X_test, clusters_test, q, b_hat)
     none_sigmas = [None for _ in range(n_sig2bs)]
+    none_sigmas_spatial = [None for _ in range(n_sig2bs_spatial)]
     none_rhos = [None for _ in range(len(est_cors))]
     none_weibull = [None, None] if mode == 'survival' else []
-    return y_pred, (sig2e_est, none_sigmas), none_rhos, none_weibull, n_epochs
+    return y_pred, (sig2e_est, none_sigmas, none_sigmas_spatial), none_rhos, none_weibull, n_epochs
 
 
 def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
@@ -459,7 +473,7 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
             n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
     elif reg_type == 'lmm':
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_lmm(
-            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode,
             n_sig2bs, n_sig2bs_spatial, est_cors, dist_matrix, spatial_embed_neurons, verbose, Z_non_linear, Z_embed_dim_pct, log_params, idx)
     elif reg_type == 'ignore':

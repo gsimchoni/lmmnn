@@ -42,7 +42,7 @@ X_non_linear: True
 Z_non_linear: False
 Z_embed_dim_pct: 10
 batch: 100
-epochs: 5
+epochs: 500
 patience: 10
 verbose: True
 log_params: False

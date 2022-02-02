@@ -35,7 +35,7 @@ class NLL(Layer):
                 weibull_init[1], name='weibull_nu', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
 
     def get_vars(self):
-        if self.mode in ['intercepts', 'spatial', 'spatial_embedded']:
+        if self.mode in ['intercepts', 'spatial', 'spatial_embedded', 'spatial_and_categoricals']:
             return self.sig2e.numpy(), self.sig2bs.numpy(), [], []
         if self.mode == 'glmm':
             return None, self.sig2bs.numpy(), [], []
@@ -98,8 +98,11 @@ class NLL(Layer):
                 max_Z = tf.reduce_max(Z_idx)
                 Z = self.getZ(N, Z_idx, min_Z, max_Z)
                 # Z = self.getZ_v1(N, Z_idx)
-                V += self.sig2bs[k] * K.dot(Z, K.transpose(Z))
-        elif self.mode == 'slopes':
+                sig2bs_loc = k
+                if self.mode == 'spatial_and_categoricals': # first 2 sig2bs go to kernel
+                    sig2bs_loc += 1
+                V += self.sig2bs[sig2bs_loc] * K.dot(Z, K.transpose(Z))
+        if self.mode == 'slopes':
             min_Z = tf.reduce_min(Z_idxs[0])
             max_Z = tf.reduce_max(Z_idxs[0])
             Z0 = self.getZ(N, Z_idxs[0], min_Z, max_Z)
@@ -120,7 +123,7 @@ class NLL(Layer):
                         else:
                             continue
                     V += sig * K.dot(Z_list[j], K.transpose(Z_list[k]))
-        elif self.mode in ['spatial', 'spatial_and_categoricals']:
+        if self.mode in ['spatial', 'spatial_and_categoricals']:
             # for expanded kernel experiments
             # min_Z = tf.maximum(tf.reduce_min(Z_idxs[0]) - self.spatial_delta, 0)
             # max_Z = tf.minimum(tf.reduce_max(Z_idxs[0]) + self.spatial_delta, self.max_loc)
