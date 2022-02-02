@@ -1,25 +1,34 @@
-mode: 'spatial'
+mode: 'spatial_and_categoricals'
 estimated_cors: []
 sig2e_list:
   - 1.0
 sig2b_spatial_list:
+-
+    - 0.5
+    - 5.0
+-
+    - 0.5
+    - 5.0
+sig2b_list:
   -
-    - 0.1
-    - 1.0
-    - 10.0
+    - 0.5
+    - 5.0
   -
-    - 0.1
-    - 1.0
-    - 10.0
-sig2b_list: []
+    - 0.5
+    - 5.0
 q_spatial_list:
+  - 100
+  - 1000
+q_list:
+  -
     - 100
     - 1000
-    - 10000
-q_list: []
+  -
+    - 100
+    - 1000
 rho_list: []
 N_list:
-  - 100000
+  - 10000
 n_iter: 5
 n_per_cat: 3
 fixed_intercept: 1

@@ -12,8 +12,9 @@ SimResult = namedtuple('SimResult',
 NNResult = namedtuple('NNResult', ['metric', 'sigmas', 'rhos', 'weibull', 'n_epochs', 'time'])
 
 NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
-                                 'N', 'qs', 'sig2e', 'p_censor', 'sig2bs', 'rhos', 'k', 'batch', 'epochs', 'patience',
-                                 'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'estimated_cors',
+                                 'N', 'qs', 'sig2e', 'p_censor', 'sig2bs', 'rhos', 'sig2bs_spatial', 'q_spatial',
+                                 'k', 'batch', 'epochs', 'patience',
+                                 'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'n_sig2bs_spatial', 'estimated_cors',
                                  'dist_matrix', 'verbose', 'n_neurons', 'dropout', 'activation', 'spatial_embed_neurons', 'log_params',
                                  'weibull_lambda', 'weibull_nu'])
 
@@ -39,7 +40,7 @@ def get_cov_mat(sig2bs, rhos, est_cors):
     return cov_mat
 
 
-def generate_data(mode, qs, sig2e, sig2bs, N, rhos, p_censor, params):
+def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p_censor, params):
     n_fixed_effects = params['n_fixed_effects']
     X = np.random.uniform(-1, 1, N * n_fixed_effects).reshape((N, n_fixed_effects))
     betas = np.ones(n_fixed_effects)
@@ -60,7 +61,7 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, p_censor, params):
     else:
         e = np.random.normal(0, np.sqrt(sig2e), N)
         y = fX + e
-    if mode == 'intercepts' or mode == 'glmm':
+    if mode in ['intercepts', 'glmm', 'spatial_and_categoricals']:
         for k, q in enumerate(qs):
             fs = np.random.poisson(params['n_per_cat'], q) + 1
             fs_sum = fs.sum()
@@ -77,8 +78,11 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, p_censor, params):
                 b = np.random.normal(0, np.sqrt(sig2bs[k]), q)
                 gZb = np.repeat(b, ns)
             y = y + gZb
-            df['z' + str(k)] = Z_idx
-    elif mode == 'slopes': # len(qs) should be 1
+            loc = k
+            if mode == 'spatial_and_categoricals':
+                loc += 1
+            df['z' + str(loc)] = Z_idx
+    if mode == 'slopes': # len(qs) should be 1
         fs = np.random.poisson(params['n_per_cat'], qs[0]) + 1
         fs_sum = fs.sum()
         ps = fs/fs_sum
@@ -99,18 +103,18 @@ def generate_data(mode, qs, sig2e, sig2bs, N, rhos, p_censor, params):
         df['t'] = t
         df['z0'] = Z_idx
         x_cols.append('t')
-    elif mode == 'spatial' or mode == 'spatial_embedded': # len(qs) should be 1
-        coords = np.stack([np.random.uniform(-10, 10, qs[0]), np.random.uniform(-10, 10, qs[0])], axis=1)
+    if mode in ['spatial', 'spatial_embedded', 'spatial_and_categoricals']:
+        coords = np.stack([np.random.uniform(-10, 10, q_spatial), np.random.uniform(-10, 10, q_spatial)], axis=1)
         # ind = np.lexsort((coords[:, 1], coords[:, 0]))    
         # coords = coords[ind]
         dist_matrix = squareform(pdist(coords)) ** 2
-        D = sig2bs[0] * np.exp(-dist_matrix / (2 * sig2bs[1]))
-        b = np.random.multivariate_normal(np.zeros(qs[0]), D, 1)[0]
-        fs = np.random.poisson(params['n_per_cat'], qs[0]) + 1
+        D = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
+        b = np.random.multivariate_normal(np.zeros(q_spatial), D, 1)[0]
+        fs = np.random.poisson(params['n_per_cat'], q_spatial) + 1
         fs_sum = fs.sum()
         ps = fs/fs_sum
         ns = np.random.multinomial(N, ps)
-        Z_idx = np.repeat(range(qs[0]), ns)
+        Z_idx = np.repeat(range(q_spatial), ns)
         gZb = np.repeat(b, ns)
         df['z0'] = Z_idx
         y = y + gZb
