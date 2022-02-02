@@ -19,6 +19,8 @@ class NLL(Layer):
                 sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
             if self.mode == 'spatial':
                 self.dist_matrix = dist_matrix
+                self.max_loc = dist_matrix.shape[1] - 1
+                self.spatial_delta = int(0.0 * dist_matrix.shape[1])
         if self.mode == 'slopes':
             self.rhos = tf.Variable(
                 rhos, name='rhos', constraint=lambda x: tf.clip_by_value(x, -1.0, 1.0))
@@ -116,6 +118,9 @@ class NLL(Layer):
                             continue
                     V += sig * K.dot(Z_list[j], K.transpose(Z_list[k]))
         elif self.mode == 'spatial':
+            # for expanded kernel experiments
+            # min_Z = tf.maximum(tf.reduce_min(Z_idxs[0]) - self.spatial_delta, 0)
+            # max_Z = tf.minimum(tf.reduce_max(Z_idxs[0]) + self.spatial_delta, self.max_loc)
             min_Z = tf.reduce_min(Z_idxs[0])
             max_Z = tf.reduce_max(Z_idxs[0])
             D = self.getD(min_Z, max_Z)
