@@ -20,6 +20,8 @@ n_per_cat: 3
 fixed_intercept: 1
 n_fixed_effects: 10
 spatial_embed_neurons:
+sig2b_spatial_list: []
+q_spatial_list: []
 weibull_nu:
 weibull_lambda:
 p_censor_list:

@@ -77,8 +77,12 @@ def summarize_sim(nn_in, res, reg_type):
         weibull_params = []
     else:
         weibull_params = [nn_in.p_censor, nn_in.weibull_lambda, nn_in.weibull_nu]
-    res = [nn_in.mode, nn_in.N, nn_in.sig2e] + list(nn_in.sig2bs) + list(nn_in.qs) + list(nn_in.rhos) +\
-        [nn_in.q_spatial] + list(nn_in.sig2bs) + list(nn_in.sig2bs_spatial) +\
+    if nn_in.q_spatial is not None:
+        q_spatial = [nn_in.q_spatial]
+    else:
+        q_spatial = []
+    res = [nn_in.mode, nn_in.N, nn_in.sig2e] + list(nn_in.sig2bs) + list(nn_in.sig2bs_spatial) +\
+        list(nn_in.qs) + list(nn_in.rhos) + q_spatial +\
         spatial_embed_out_dim + weibull_params +\
         [nn_in.k, reg_type, res.metric, res.sigmas[0]] + res.sigmas[1] + res.rhos + res.sigmas[2] + res.weibull +\
         [res.n_epochs, res.time]
@@ -105,6 +109,7 @@ def simulation(out_file, params):
     sig2bs_spatial_names = []
     sig2bs_spatial_est_names = []
     q_spatial_name = []
+    q_spatial_list = [None]
     metric = 'mse'
     if mode == 'intercepts':
         assert n_sig2bs == n_categoricals
@@ -124,17 +129,21 @@ def simulation(out_file, params):
         sig2bs_spatial_names = ['sig2b0_spatial', 'sig2b1_spatial']
         sig2bs_spatial_est_names = ['sig2b_spatial_est0', 'sig2b_spatial_est1']
         q_spatial_name = ['q_spatial']
+        q_spatial_list = params['q_spatial_list']
     elif mode == 'spatial_and_categoricals':
         assert n_sig2bs == n_categoricals
         assert n_sig2bs_spatial == 2
         sig2bs_spatial_names = ['sig2b0_spatial', 'sig2b1_spatial']
         sig2bs_spatial_est_names = ['sig2b_spatial_est0', 'sig2b_spatial_est1']
         q_spatial_name = ['q_spatial']
+        q_spatial_list = params['q_spatial_list']
     elif mode == 'spatial_embedded':
         assert n_categoricals == 0
         assert n_sig2bs == 0
         assert n_sig2bs_spatial == 2
         spatial_embed_out_dim_name = ['spatial_embed_out_dim']
+        q_spatial_name = ['q_spatial']
+        q_spatial_list = params['q_spatial_list']
     elif mode == 'survival':
         assert n_categoricals == 1
         assert n_sig2bs == n_categoricals
@@ -151,7 +160,7 @@ def simulation(out_file, params):
     sig2bs_names =  list(map(lambda x: 'sig2b' + str(x), range(n_sig2bs)))
     sig2bs_est_names =  list(map(lambda x: 'sig2b_est' + str(x), range(n_sig2bs)))
     
-    res_df = pd.DataFrame(columns=['mode', 'N', 'sig2e'] + sig2bs_names + qs_names + rhos_names + q_spatial_name + sig2bs_spatial_names +
+    res_df = pd.DataFrame(columns=['mode', 'N', 'sig2e'] + sig2bs_names + sig2bs_spatial_names + qs_names + rhos_names + q_spatial_name +
         spatial_embed_out_dim_name + p_censor_name + weibull_nu_name + weibull_lambda_name +
         ['experiment', 'exp_type', metric, 'sig2e_est'] +
         sig2bs_est_names + rhos_est_names + sig2bs_spatial_est_names +
@@ -163,10 +172,10 @@ def simulation(out_file, params):
                     for rhos in product(*params['rho_list']):
                         for p_censor in p_censor_list:
                             for sig2bs_spatial in product(*params['sig2b_spatial_list']):
-                                for q_spatial in params['q_spatial_list']:
-                                    logger.info('mode: %s, N: %d, sig2e: %.2f; sig2bs: [%s]; qs: [%s]; rhos: [%s], sig2bs_spatial: [%s], q_spatial: %d, p_censor: %.2f' %
+                                for q_spatial in q_spatial_list:
+                                    logger.info('mode: %s, N: %d, sig2e: %.2f; sig2bs: [%s]; qs: [%s]; rhos: [%s], sig2bs_spatial: [%s], q_spatial: %s, p_censor: %.2f' %
                                                 (mode, N, sig2e, ', '.join(map(str, sig2bs)), ', '.join(map(str, qs)),
-                                                ', '.join(map(str, rhos)), ', '.join(map(str, sig2bs_spatial)), q_spatial, p_censor))
+                                                ', '.join(map(str, rhos)), ', '.join(map(str, sig2bs_spatial)), str(q_spatial), p_censor))
                                     for k in range(params['n_iter']):
                                         X_train, X_test, y_train, y_test, x_cols, dist_matrix = generate_data(
                                             mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p_censor, params)
