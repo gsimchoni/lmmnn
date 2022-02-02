@@ -14,7 +14,7 @@ class NLL(Layer):
             sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
         self.Z_non_linear = Z_non_linear
         self.mode = mode
-        if self.mode in ['intercepts', 'slopes', 'spatial', 'spatial_embedded']:
+        if self.mode in ['intercepts', 'slopes', 'spatial', 'spatial_embedded', 'spatial_and_categoricals']:
             self.sig2e = tf.Variable(
                 sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
             if self.mode in ['spatial', 'spatial_and_categoricals']:

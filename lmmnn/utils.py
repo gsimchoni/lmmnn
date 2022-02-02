@@ -62,6 +62,9 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
         e = np.random.normal(0, np.sqrt(sig2e), N)
         y = fX + e
     if mode in ['intercepts', 'glmm', 'spatial_and_categoricals']:
+        delta_loc = 0
+        if mode == 'spatial_and_categoricals':
+            delta_loc = 1
         for k, q in enumerate(qs):
             fs = np.random.poisson(params['n_per_cat'], q) + 1
             fs_sum = fs.sum()
@@ -78,10 +81,7 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
                 b = np.random.normal(0, np.sqrt(sig2bs[k]), q)
                 gZb = np.repeat(b, ns)
             y = y + gZb
-            loc = k
-            if mode == 'spatial_and_categoricals':
-                loc += 1
-            df['z' + str(loc)] = Z_idx
+            df['z' + str(k + delta_loc)] = Z_idx
     if mode == 'slopes': # len(qs) should be 1
         fs = np.random.poisson(params['n_per_cat'], qs[0]) + 1
         fs_sum = fs.sum()
