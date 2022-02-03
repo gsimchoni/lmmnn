@@ -107,15 +107,14 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                 D = get_D_est(n_cats, sig2bs)
                 V = gZ_train @ D @ gZ_train.T + np.eye(gZ_train.shape[0]) * sig2e
                 if mode == 'spatial_and_categoricals':
-                    gZ_train = get_dummies(X_train['z0'].values, q_spatial)
-                    gZ_train = sparse.csr_matrix(gZ_train)
-                    D = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
-                    gZ_train = gZ_train[samp]
-                    N = gZ_train.shape[0]
-                    gZ_train = gZ_train[samp]
-                    V += gZ_train @ D @ gZ_train.T
+                    gZ_train_spatial = get_dummies(X_train['z0'].values, q_spatial)
+                    gZ_train_spatial = sparse.csr_matrix(gZ_train_spatial)
+                    D_spatial = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
+                    gZ_train_spatial = gZ_train_spatial[samp]
+                    V += gZ_train_spatial @ D_spatial @ gZ_train_spatial.T
+                    gZ_train = sparse.hstack([gZ_train, gZ_train_spatial])
+                    D = sparse.block_diag((D, D_spatial))
                 V_inv_y = np.linalg.inv(V) @ (y_train.values[samp] - y_pred_tr[samp])
-                # TODO: gZ is N x q_sum, D is q_sum x q_sum
                 b_hat = D @ gZ_train.T @ V_inv_y
             else:
                 if mode == 'spatial_and_categoricals':
@@ -370,14 +369,19 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
     dummy_y_test = np.random.normal(size=y_test.shape)
     if mode in ['intercepts', 'glmm', 'spatial', 'spatial_and_categoricals']:
         if Z_non_linear or len(qs) > 1:
+            delta_loc = 0
+            if mode == 'spatial_and_categoricals':
+                delta_loc = 1
             Z_tests = []
             for k, q in enumerate(qs):
-                Z_test = get_dummies(X_test['z' + str(k)], q)
+                Z_test = get_dummies(X_test['z' + str(k + delta_loc)], q)
                 if Z_non_linear:
                     W_est = model.get_layer('Z_embed' + str(k)).get_weights()[0]
                     Z_test = Z_test @ W_est
                 Z_tests.append(Z_test)
             Z_test = np.hstack(Z_tests)
+            if mode == 'spatial_and_categoricals':
+                Z_test = np.hstack([Z_test, get_dummies(X_test['z0'], q_spatial)])
             y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0]) + Z_test @ b_hat
         else:
