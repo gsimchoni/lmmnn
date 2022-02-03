@@ -1,6 +1,7 @@
 from itertools import product
 import os
 import logging
+from tabnanny import verbose
 
 import pandas as pd
 
@@ -23,8 +24,10 @@ class Count:
             yield Count.curr
 
 
-def iterate_reg_types(counter, res_df, out_file, nn_in, exp_types):
+def iterate_reg_types(counter, res_df, out_file, nn_in, exp_types, verbose):
     if 'ohe' in exp_types:
+        if verbose:
+            logger.info('mode ohe:')
         if all(map(lambda q: q <= 10000, nn_in.qs)):
             res = run_reg_nn(nn_in, 'ohe')
             ohe_res = summarize_sim(nn_in, res, 'ohe')
@@ -35,21 +38,29 @@ def iterate_reg_types(counter, res_df, out_file, nn_in, exp_types):
         res_df.loc[next(counter)] = ohe_res
         logger.debug('  Finished OHE.')
     if 'ignore' in exp_types:
+        if verbose:
+            logger.info('mode ignore:')
         res = run_reg_nn(nn_in, 'ignore')
         ig_res = summarize_sim(nn_in, res, 'ignore')
         res_df.loc[next(counter)] = ig_res
         logger.debug('  Finished Ignore.')
     if 'embeddings' in exp_types:
+        if verbose:
+            logger.info('mode embed:')
         res = run_reg_nn(nn_in, 'embed')
         embed_res = summarize_sim(nn_in, res, 'embed')
         res_df.loc[next(counter)] = embed_res
         logger.debug('  Finished Embedding.')
     if 'lmmnn' in exp_types:
+        if verbose:
+            logger.info('mode lmm:')
         res = run_reg_nn(nn_in, 'lmm')
         lmm_res = summarize_sim(nn_in, res, 'lmm')
         res_df.loc[next(counter)] = lmm_res
         logger.debug('  Finished LMM.')
     if 'menet' in exp_types:
+        if verbose:
+            logger.info('mode menet:')
         if len(nn_in.qs) == 1 and nn_in.mode == 'intercepts':
             res = run_reg_nn(nn_in, 'menet')
             me_res = summarize_sim(nn_in, res, 'menet')
@@ -189,4 +200,4 @@ def simulation(out_file, params):
                                                         params['n_neurons'], params['dropout'], params['activation'],
                                                         params['spatial_embed_neurons'], params['log_params'],
                                                         params['weibull_lambda'], params['weibull_nu'])
-                                        iterate_reg_types(counter, res_df, out_file, nn_in, params['exp_types'])
+                                        iterate_reg_types(counter, res_df, out_file, nn_in, params['exp_types'], params['verbose'])
