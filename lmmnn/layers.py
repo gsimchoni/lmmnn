@@ -100,7 +100,7 @@ class NLL(Layer):
                 # Z = self.getZ_v1(N, Z_idx)
                 sig2bs_loc = k
                 if self.mode == 'spatial_and_categoricals': # first 2 sig2bs go to kernel
-                    sig2bs_loc += 1
+                    sig2bs_loc += 2
                 V += self.sig2bs[sig2bs_loc] * K.dot(Z, K.transpose(Z))
         if self.mode == 'slopes':
             min_Z = tf.reduce_min(Z_idxs[0])
