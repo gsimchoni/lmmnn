@@ -69,8 +69,8 @@ def process_one_hot_encoding(X_train, X_test, x_cols):
 
 
 def get_D_est(qs, sig2bs):
-    D_hat = np.eye(np.sum(qs))
-    np.fill_diagonal(D_hat, np.repeat(sig2bs, qs))    
+    D_hat = sparse.eye(np.sum(qs))
+    D_hat.setdiag(np.repeat(sig2bs, qs))
     return D_hat
 
 
@@ -78,10 +78,10 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
     Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix, weibull_ests):
     experimental = False
     if mode in ['intercepts', 'spatial_and_categoricals']:
-        delta_loc = 0
-        if mode == 'spatial_and_categoricals':
-            delta_loc = 1
-        if Z_non_linear or len(qs) > 1:
+        if Z_non_linear or len(qs) > 1 or mode == 'spatial_and_categoricals':
+            delta_loc = 0
+            if mode == 'spatial_and_categoricals':
+                delta_loc = 1
             gZ_trains = []
             for k in range(len(sig2bs)):
                 gZ_train = get_dummies(X_train['z' + str(k + delta_loc)].values, qs[k])
@@ -105,7 +105,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
             gZ_train = gZ_train[samp]
             if not experimental:
                 D = get_D_est(n_cats, sig2bs)
-                V = gZ_train @ D @ gZ_train.T + np.eye(gZ_train.shape[0]) * sig2e
+                V = gZ_train @ D @ gZ_train.T + sparse.eye(gZ_train.shape[0]) * sig2e
                 if mode == 'spatial_and_categoricals':
                     gZ_train_spatial = get_dummies(X_train['z0'].values, q_spatial)
                     gZ_train_spatial = sparse.csr_matrix(gZ_train_spatial)
@@ -114,6 +114,12 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                     V += gZ_train_spatial @ D_spatial @ gZ_train_spatial.T
                     gZ_train = sparse.hstack([gZ_train, gZ_train_spatial])
                     D = sparse.block_diag((D, D_spatial))
+                    V = np.asarray(V)
+                else:
+                    if Z_non_linear:
+                        V = np.asarray(V)
+                    else:
+                        V = V.toarray()
                 V_inv_y = np.linalg.inv(V) @ (y_train.values[samp] - y_pred_tr[samp])
                 b_hat = D @ gZ_train.T @ V_inv_y
             else:
@@ -368,7 +374,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
                 Z_non_linear, model, ls, mode, rho_ests, est_cors, dist_matrix, weibull_ests)
     dummy_y_test = np.random.normal(size=y_test.shape)
     if mode in ['intercepts', 'glmm', 'spatial', 'spatial_and_categoricals']:
-        if Z_non_linear or len(qs) > 1:
+        if Z_non_linear or len(qs) > 1 or mode == 'spatial_and_categoricals':
             delta_loc = 0
             if mode == 'spatial_and_categoricals':
                 delta_loc = 1
