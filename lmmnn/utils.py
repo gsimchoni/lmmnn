@@ -148,6 +148,7 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
         df['C0'] = 1 - cens
         x_cols.extend(['C0'])
     df['y'] = y
+    test_size = params['test_size'] if 'test_size' in params else 0.2
     X_train, X_test, y_train, y_test = train_test_split(
-        df.drop('y', axis=1), df['y'], test_size=0.2)
+        df.drop('y', axis=1), df['y'], test_size=test_size)
     return X_train, X_test, y_train, y_test, x_cols, dist_matrix
