@@ -26,6 +26,8 @@ p_censor_list:
   - 1
   - 10
   - 30
+sig2b_spatial_list: []
+q_spatial_list: []
 n_neurons:
   - 100
   - 50

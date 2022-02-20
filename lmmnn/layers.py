@@ -14,10 +14,10 @@ class NLL(Layer):
             sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
         self.Z_non_linear = Z_non_linear
         self.mode = mode
-        if self.mode in ['intercepts', 'slopes', 'spatial', 'spatial_embedded']:
+        if self.mode in ['intercepts', 'slopes', 'spatial', 'spatial_embedded', 'spatial_and_categoricals']:
             self.sig2e = tf.Variable(
                 sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
-            if self.mode == 'spatial':
+            if self.mode in ['spatial', 'spatial_and_categoricals']:
                 self.dist_matrix = dist_matrix
                 self.max_loc = dist_matrix.shape[1] - 1
                 self.spatial_delta = int(0.0 * dist_matrix.shape[1])
@@ -35,7 +35,7 @@ class NLL(Layer):
                 weibull_init[1], name='weibull_nu', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
 
     def get_vars(self):
-        if self.mode in ['intercepts', 'spatial', 'spatial_embedded']:
+        if self.mode in ['intercepts', 'spatial', 'spatial_embedded', 'spatial_and_categoricals']:
             return self.sig2e.numpy(), self.sig2bs.numpy(), [], []
         if self.mode == 'glmm':
             return None, self.sig2bs.numpy(), [], []
@@ -89,14 +89,20 @@ class NLL(Layer):
     def custom_loss_lm(self, y_true, y_pred, Z_idxs):
         N = K.shape(y_true)[0]
         V = self.sig2e * tf.eye(N)
-        if self.mode == 'intercepts' or self.mode == 'spatial_embedded':
-            for k, Z_idx in enumerate(Z_idxs):
+        if self.mode in ['intercepts', 'spatial_embedded', 'spatial_and_categoricals']:
+            categoricals_loc = 0
+            if self.mode == 'spatial_and_categoricals':
+                categoricals_loc = 1
+            for k, Z_idx in enumerate(Z_idxs[categoricals_loc:]):
                 min_Z = tf.reduce_min(Z_idx)
                 max_Z = tf.reduce_max(Z_idx)
                 Z = self.getZ(N, Z_idx, min_Z, max_Z)
                 # Z = self.getZ_v1(N, Z_idx)
-                V += self.sig2bs[k] * K.dot(Z, K.transpose(Z))
-        elif self.mode == 'slopes':
+                sig2bs_loc = k
+                if self.mode == 'spatial_and_categoricals': # first 2 sig2bs go to kernel
+                    sig2bs_loc += 2
+                V += self.sig2bs[sig2bs_loc] * K.dot(Z, K.transpose(Z))
+        if self.mode == 'slopes':
             min_Z = tf.reduce_min(Z_idxs[0])
             max_Z = tf.reduce_max(Z_idxs[0])
             Z0 = self.getZ(N, Z_idxs[0], min_Z, max_Z)
@@ -117,7 +123,7 @@ class NLL(Layer):
                         else:
                             continue
                     V += sig * K.dot(Z_list[j], K.transpose(Z_list[k]))
-        elif self.mode == 'spatial':
+        if self.mode in ['spatial', 'spatial_and_categoricals']:
             # for expanded kernel experiments
             # min_Z = tf.maximum(tf.reduce_min(Z_idxs[0]) - self.spatial_delta, 0)
             # max_Z = tf.minimum(tf.reduce_max(Z_idxs[0]) + self.spatial_delta, self.max_loc)

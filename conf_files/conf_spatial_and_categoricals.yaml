@@ -1,15 +1,28 @@
-mode: 'glmm'
+mode: 'spatial_and_categoricals'
 estimated_cors: []
 sig2e_list:
   - 1.0
+sig2b_spatial_list:
+-
+    - 0.5
+    - 5.0
+-
+    - 1.0
 sig2b_list:
   -
-    - 0.1
-    - 1.0
-    - 10.0
+    - 0.5
+    - 5.0
+  -
+    - 0.5
+    - 5.0
+q_spatial_list:
+  - 1000
+  - 10000
 q_list:
   -
-    - 100
+    - 1000
+    - 10000
+  -
     - 1000
     - 10000
 rho_list: []
@@ -23,8 +36,6 @@ spatial_embed_neurons:
 weibull_nu:
 weibull_lambda:
 p_censor_list:
-sig2b_spatial_list: []
-q_spatial_list: []
 n_neurons:
   - 100
   - 50
@@ -38,7 +49,7 @@ activation: 'relu'
 X_non_linear: True
 Z_non_linear: False
 Z_embed_dim_pct: 10
-batch: 30
+batch: 100
 epochs: 500
 patience: 10
 verbose: False
