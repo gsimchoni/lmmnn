@@ -136,8 +136,9 @@ class NLL(Layer):
         # loss2 = K.dot(K.transpose(y_true - y_pred),
         #               K.dot(V_inv, y_true - y_pred))
         loss2 = K.dot(K.transpose(y_true - y_pred),
-                      tf.linalg.solve(V, y_true - y_pred))
-        loss1 = tf.math.log(tf.linalg.det(V))
+                      tf.linalg.lstsq(V, y_true - y_pred))
+        # loss1 = tf.math.log(tf.linalg.det(V))
+        _, loss1 = tf.linalg.slogdet(V)
         total_loss = 0.5 * K.cast(N, tf.float32) * \
             np.log(2 * np.pi) + 0.5 * loss1 + 0.5 * loss2
         return total_loss
