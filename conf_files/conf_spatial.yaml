@@ -46,6 +46,7 @@ epochs: 500
 patience: 10
 verbose: False
 log_params: False
+test_size: 0.2
 exp_types:
   - 'lmmnn'
   - 'ignore'
