@@ -101,8 +101,14 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                 gZ_train = sparse.csr_matrix(np.hstack(gZ_trains))
                 n_cats = qs
                 samp = np.arange(X_train.shape[0])
-                if not experimental and X_train.shape[0] > 10000:
+                if not experimental:
+                    if mode == 'spatial_and_categoricals' and X_train.shape[0] > 10000:
                         samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+                    elif X_train.shape[0] > 30000:
+                        # Z linear, multiple categoricals, V is relatively sparse, will solve with sparse.linalg.spsolve
+                        # consider sampling or "inducing points" approach
+                        # samp = np.random.choice(X_train.shape[0], 30000, replace=False)
+                        pass
             gZ_train = gZ_train[samp]
             if not experimental:
                 D = get_D_est(n_cats, sig2bs)
@@ -115,13 +121,12 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                     V += gZ_train_spatial @ D_spatial @ gZ_train_spatial.T
                     gZ_train = sparse.hstack([gZ_train, gZ_train_spatial])
                     D = sparse.block_diag((D, D_spatial))
-                    V = np.asarray(V)
+                    V_inv_y = np.linalg.solve(V, y_train.values[samp] - y_pred_tr[samp])
                 else:
                     if Z_non_linear:
-                        V = np.asarray(V)
+                        V_inv_y = np.linalg.solve(V, y_train.values[samp] - y_pred_tr[samp])
                     else:
-                        V = V.toarray()
-                V_inv_y = np.linalg.inv(V) @ (y_train.values[samp] - y_pred_tr[samp])
+                        V_inv_y = sparse.linalg.spsolve(V, y_train.values[samp] - y_pred_tr[samp])
                 b_hat = D @ gZ_train.T @ V_inv_y
             else:
                 if mode == 'spatial_and_categoricals':
@@ -201,7 +206,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
             samp = np.arange(X_train.shape[0])
         gZ_train = gZ_train[samp]
         V = gZ_train @ D @ gZ_train.T + np.eye(gZ_train.shape[0]) * sig2e
-        V_inv_y = np.linalg.inv(V) @ (y_train.values[samp] - y_pred_tr[samp])
+        V_inv_y = np.linalg.solve(V, y_train.values[samp] - y_pred_tr[samp])
         b_hat = D @ gZ_train.T @ V_inv_y
         # A = gZ_train.T @ gZ_train / sig2e + D_inv
         # A_inv_Zt = np.linalg.inv(A) @ gZ_train.T
