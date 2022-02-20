@@ -45,7 +45,8 @@ def add_layers_functional(X_input, n_neurons, dropout, activation, input_dim):
                 x = Dropout(dropout[i])(x)
         if len(n_neurons) > 1:
             x = Dense(n_neurons[-1], activation=activation)(x)
-    return x
+        return x
+    return X_input
 
 
 def process_one_hot_encoding(X_train, X_test, x_cols):
@@ -127,7 +128,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                     raise ValueError('experimental inverse not yet implemented in this mode')
                 D_inv = get_D_est(n_cats, 1 / sig2bs)
                 A = gZ_train.T @ gZ_train / sig2e + D_inv
-                b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
+                b_hat = np.linalg.inv(A.toarray()) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
                 b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
         else:
             b_hat = []
