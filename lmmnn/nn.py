@@ -116,7 +116,6 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                 V = gZ_train @ D @ gZ_train.T + sparse.eye(gZ_train.shape[0]) * sig2e
                 if mode == 'spatial_and_categoricals':
                     gZ_train_spatial = get_dummies(X_train['z0'].values, q_spatial)
-                    # gZ_train_spatial = sparse.csr_matrix(gZ_train_spatial)
                     D_spatial = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
                     gZ_train_spatial = gZ_train_spatial[samp]
                     V += gZ_train_spatial @ D_spatial @ gZ_train_spatial.T
@@ -412,7 +411,6 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
             y_pred = np.exp(y_pred)/(1 + np.exp(y_pred))
     elif mode == 'slopes':
         q = qs[0]
-        # Z0 = sparse.csr_matrix(get_dummies(X_test['z0'], q))
         Z0 = get_dummies(X_test['z0'], q)
         t = X_test['t'].values
         N = X_test.shape[0]
