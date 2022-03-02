@@ -159,13 +159,13 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
             Z_list.append(sparse.spdiags(t ** k, 0, N, N) @ Z0)
         gZ_train = sparse.hstack(Z_list)
         cov_mat = get_cov_mat(sig2bs, rhos, est_cors)
-        D = sparse.kron(cov_mat, np.eye(q)) + sig2e * np.eye(q * len(sig2bs))
-        if experimental:
+        if not experimental:
+            D = sparse.kron(cov_mat, sparse.eye(q)) + sig2e * sparse.eye(q * len(sig2bs))
             V = gZ_train @ D @ gZ_train.T + sparse.eye(gZ_train.shape[0]) * sig2e
-            V_inv_y = np.linalg.solve(V, y_train.values - y_pred_tr)
+            V_inv_y = sparse.linalg.lsqr(V, y_train.values - y_pred_tr)[0]
             b_hat = D @ gZ_train.T @ V_inv_y
-            b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
         else:
+            D = sparse.kron(cov_mat, np.eye(q)) + sig2e * np.eye(q * len(sig2bs))
             D_inv = np.linalg.inv(D)
             A = gZ_train.T @ gZ_train / sig2e + D_inv
             b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values - y_pred_tr)
