@@ -96,9 +96,10 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                 else:
                     samp = np.arange(X_train.shape[0])
                 gZ_train = np.hstack(gZ_trains)
+                gZ_train = gZ_train[samp]
                 n_cats = ls
             else:
-                gZ_train = sparse.csr_matrix(np.hstack(gZ_trains))
+                gZ_train = sparse.hstack(gZ_trains)
                 n_cats = qs
                 samp = np.arange(X_train.shape[0])
                 if not experimental:
@@ -109,13 +110,13 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                         # consider sampling or "inducing points" approach if matrix is huge
                         # samp = np.random.choice(X_train.shape[0], 100000, replace=False)
                         pass
-            gZ_train = gZ_train[samp]
+                gZ_train = gZ_train.tocsr()[samp]
             if not experimental:
                 D = get_D_est(n_cats, sig2bs)
                 V = gZ_train @ D @ gZ_train.T + sparse.eye(gZ_train.shape[0]) * sig2e
                 if mode == 'spatial_and_categoricals':
                     gZ_train_spatial = get_dummies(X_train['z0'].values, q_spatial)
-                    gZ_train_spatial = sparse.csr_matrix(gZ_train_spatial)
+                    # gZ_train_spatial = sparse.csr_matrix(gZ_train_spatial)
                     D_spatial = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
                     gZ_train_spatial = gZ_train_spatial[samp]
                     V += gZ_train_spatial @ D_spatial @ gZ_train_spatial.T
@@ -151,7 +152,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
             b_hat = np.array(b_hat)
     elif mode == 'slopes':
         q = qs[0]
-        Z0 = sparse.csr_matrix(get_dummies(X_train['z0'], q))
+        Z0 = get_dummies(X_train['z0'], q)
         t = X_train['t'].values
         N = X_train.shape[0]
         Z_list = [Z0]
@@ -159,11 +160,17 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
             Z_list.append(sparse.spdiags(t ** k, 0, N, N) @ Z0)
         gZ_train = sparse.hstack(Z_list)
         cov_mat = get_cov_mat(sig2bs, rhos, est_cors)
-        D = np.kron(cov_mat, np.eye(q)) + sig2e * np.eye(q * len(sig2bs))
-        D_inv = np.linalg.inv(D)
-        A = gZ_train.T @ gZ_train / sig2e + D_inv
-        b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values - y_pred_tr)
-        b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
+        D = sparse.kron(cov_mat, np.eye(q)) + sig2e * np.eye(q * len(sig2bs))
+        if experimental:
+            V = gZ_train @ D @ gZ_train.T + sparse.eye(gZ_train.shape[0]) * sig2e
+            V_inv_y = np.linalg.solve(V, y_train.values - y_pred_tr)
+            b_hat = D @ gZ_train.T @ V_inv_y
+            b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
+        else:
+            D_inv = np.linalg.inv(D)
+            A = gZ_train.T @ gZ_train / sig2e + D_inv
+            b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values - y_pred_tr)
+            b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
     elif mode == 'glmm':
         nGQ = 5
         x_ks, w_ks = np.polynomial.hermite.hermgauss(nGQ)
@@ -197,7 +204,6 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
         b_hat = np.array(b_hat_numerators) / np.array(b_hat_denominators)
     elif mode == 'spatial':
         gZ_train = get_dummies(X_train['z0'].values, q_spatial)
-        gZ_train = sparse.csr_matrix(gZ_train)
         D = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
         N = gZ_train.shape[0]
         if X_train.shape[0] > 10000:
@@ -391,9 +397,12 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
                     W_est = model.get_layer('Z_embed' + str(k)).get_weights()[0]
                     Z_test = Z_test @ W_est
                 Z_tests.append(Z_test)
-            Z_test = np.hstack(Z_tests)
+            if Z_non_linear:
+                Z_test = np.hstack(Z_tests)
+            else:
+                Z_test = sparse.hstack(Z_tests)
             if mode == 'spatial_and_categoricals':
-                Z_test = np.hstack([Z_test, get_dummies(X_test['z0'], q_spatial)])
+                Z_test = sparse.hstack([Z_test, get_dummies(X_test['z0'], q_spatial)])
             y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
                 X_test.shape[0]) + Z_test @ b_hat
         else:
@@ -403,7 +412,8 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
             y_pred = np.exp(y_pred)/(1 + np.exp(y_pred))
     elif mode == 'slopes':
         q = qs[0]
-        Z0 = sparse.csr_matrix(get_dummies(X_test['z0'], q))
+        # Z0 = sparse.csr_matrix(get_dummies(X_test['z0'], q))
+        Z0 = get_dummies(X_test['z0'], q)
         t = X_test['t'].values
         N = X_test.shape[0]
         Z_list = [Z0]

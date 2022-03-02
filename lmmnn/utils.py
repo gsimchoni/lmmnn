@@ -20,6 +20,11 @@ NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_co
 
 def get_dummies(vec, vec_max):
     vec_size = vec.size
+    Z = sparse.csr_matrix((np.ones(vec_size), (np.arange(vec_size), vec)), shape=(vec_size, vec_max), dtype=np.uint8)
+    return Z
+
+def get_dummies_np(vec, vec_max):
+    vec_size = vec.size
     Z = np.zeros((vec_size, vec_max), dtype=np.uint8)
     Z[np.arange(vec_size), vec] = 1
     return Z
