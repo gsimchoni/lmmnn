@@ -33,7 +33,11 @@ class NLL(Layer):
                 weibull_init[0], name='weibull_lambda', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
             self.weibull_nu = tf.Variable(
                 weibull_init[1], name='weibull_nu', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
+        self.grads=None
 
+    def get_grads(self):
+        return self.grads[0].numpy(), self.grads[1].numpy()
+    
     def get_vars(self):
         if self.mode in ['intercepts', 'spatial', 'spatial_embedded', 'spatial_and_categoricals']:
             return self.sig2e.numpy(), self.sig2bs.numpy(), [], []
@@ -186,5 +190,8 @@ class NLL(Layer):
         elif self.mode == 'survival':
             self.add_loss(self.custom_loss_survival(y_true, y_pred, Z_idxs))
         else:
-            self.add_loss(self.custom_loss_lm(y_true, y_pred, Z_idxs))
+            with tf.GradientTape() as g:
+                loss = self.custom_loss_lm(y_true, y_pred, Z_idxs)
+                self.grads = g.gradient(loss, [self.sig2e, self.sig2bs])
+            self.add_loss(loss)
         return y_pred

@@ -280,6 +280,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
         mode, n_sig2bs, n_sig2bs_spatial, est_cors, dist_matrix, spatial_embed_neurons,
         verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False, idx=0):
+    calc_grad = True
     if mode in ['spatial', 'spatial_embedded', 'spatial_and_categoricals']:
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     if mode == 'survival':
@@ -346,7 +347,10 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
         y_true_input, y_pred_output, Z_nll_inputs)
     model = Model(inputs=[X_input, y_true_input] + Z_inputs, outputs=nll)
 
-    model.compile(optimizer='adam')
+    if calc_grad and mode == 'intercepts':
+        model.compile(optimizer='adam', run_eagerly=True)
+    else:
+        model.compile(optimizer='adam')
 
     patience = epochs if patience is None else patience
     if Z_non_linear and mode == 'intercepts':
