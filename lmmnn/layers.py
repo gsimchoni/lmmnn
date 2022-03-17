@@ -132,11 +132,12 @@ class NLL(Layer):
             D = self.getD(min_Z, max_Z)
             Z = self.getZ(N, Z_idxs[0], min_Z, max_Z)
             V += K.dot(Z, K.dot(D, K.transpose(Z)))
-        # V_inv = tf.linalg.inv(V)
-        # loss2 = K.dot(K.transpose(y_true - y_pred),
-        #               K.dot(V_inv, y_true - y_pred))
-        loss2 = K.dot(K.transpose(y_true - y_pred),
-                      tf.linalg.lstsq(V, y_true - y_pred))
+        if self.Z_non_linear:
+            V_inv = tf.linalg.inv(V)
+            V_inv_y = K.dot(V_inv, y_true - y_pred)
+        else:
+            V_inv_y = tf.linalg.lstsq(V, y_true - y_pred)
+        loss2 = K.dot(K.transpose(y_true - y_pred), V_inv_y)
         # loss1 = tf.math.log(tf.linalg.det(V))
         _, loss1 = tf.linalg.slogdet(V)
         total_loss = 0.5 * K.cast(N, tf.float32) * \
