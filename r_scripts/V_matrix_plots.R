@@ -101,4 +101,34 @@ p_categoricals <- melted_V %>%
     panel.background = element_blank())
 
 p_spatial | p_categoricals
-ggsave(path = "~/", filename = "lmmnn_UKB_V_matrices.png", width = 8, height = 4, device="png", dpi=700)
+ggsave(path = "~/", filename = "lmmnn_UKB_V_matrices.png", width = 8, height = 3, device="png", dpi=700)
+
+# plot eigendecay
+eigens_Z1 <- eigen(Z1 %*% t(Z1))$values
+eigens_V <- eigen(V)$values
+plot(eigens_Z1)
+plot(eigens_V)
+
+p_EigZZ <- tibble(idx = 1:length(eigens_Z1), eig = eigens_Z1) %>%
+  ggplot(aes(idx, eig)) +
+  geom_point(size = 2) +
+  geom_line(data = tibble(idx = 1:length(eigens_Z1), eig = 1000/(idx ^ 1)), color = "red", lwd = 1) +
+  ylim(range(eigens_Z1)) +
+  labs(y = "Eig(ZZ')", x = NULL) +
+  theme_bw() +
+  theme(
+    text = element_text(family = "Century", size = 14)
+  )
+
+p_EigV <- tibble(idx = 1:length(eigens_V), eig = eigens_V) %>%
+  ggplot(aes(idx, eig)) +
+  geom_point(size = 2) +
+  geom_line(data = tibble(idx = 1:length(eigens_V), eig = 5000/(idx ^ 1)), color = "red", lwd = 1) +
+  ylim(range(eigens_V)) +
+  labs(y = "Eig(V)", x = NULL) +
+  theme_bw() +
+  theme(
+    text = element_text(family = "Century", size = 14)
+  )
+p_EigZZ | p_EigV
+ggsave(path = "~/", filename = "lmmnn_UKB_eigendecay.png", width = 8, height = 3, device="png", dpi=700)

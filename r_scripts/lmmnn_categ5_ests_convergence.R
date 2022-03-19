@@ -118,7 +118,7 @@ p3 <- df_long %>%
   # scale_y_log10() +
   scale_y_continuous(breaks = c(200, 400, 600), limits = c(0, 650)) +
   scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
-  scale_color_manual(labels = c("train", "val"), values = c("yellow", "purple")) +
+  scale_color_manual(labels = c("train", "valid"), values = c("#eb3434", "#3a34eb")) +
   labs(y = NULL, color = NULL, subtitle = "NLL Loss") +
   theme_bw() +
   theme(legend.position = "left",
@@ -254,7 +254,7 @@ p3 <- df_long %>%
   # scale_y_log10() +
   scale_y_continuous(breaks = c(200, 400, 600), limits = c(0, 650)) +
   scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
-  scale_color_manual(labels = c("train", "val"), values = c("yellow", "purple")) +
+  scale_color_manual(labels = c("train", "valid"), values = c("#eb3434", "#3a34eb")) +
   labs(y = NULL, color = NULL, subtitle = "") +
   guides(color = "none") +
   theme_bw() +
