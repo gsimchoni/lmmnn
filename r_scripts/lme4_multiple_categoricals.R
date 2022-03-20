@@ -12,6 +12,8 @@ mode <- "intercepts"
 sig2e <- 1.0
 sig2b_list <- list(list(0.5, 5.0), list(0.5, 5.0))
 q_list <- list(list(1000L, 10000L), list(1000L, 10000L))
+sig2bs_spatial <- NULL
+q_spatial <- NULL
 N <- 100000L
 n_iter <- 5
 
@@ -28,6 +30,7 @@ for (sig2b0 in sig2b_list[[1]]) {
           cat(glue::glue("  iteration: {k}"), "\n")
           py_res <- lmmnn_utils$generate_data(
             mode = mode, qs = list(q0, q1), sig2e = sig2e, sig2bs = list(sig2b0, sig2b1),
+            sig2bs_spatial = sig2bs_spatial, q_spatial = q_spatial,
             N = N, rhos = list(), p_censor = list(), params = params_dict)
           X_train = py_res[[1]]
           X_test = py_res[[2]]
