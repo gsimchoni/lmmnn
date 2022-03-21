@@ -58,6 +58,7 @@ for (sig2b0 in sig2b_list[[1]]) {
           y_pred <- predict(out, df_test, allow.new.levels = TRUE)
           mse <- mean((y_test - y_pred)^2)
           res_list[[counter]] <- list(
+            mode = mode,
             N = N,
             sig2e = sig2e,
             sig2b0 = sig2b0,
@@ -66,8 +67,7 @@ for (sig2b0 in sig2b_list[[1]]) {
             q0 = q0,
             q1 = q1,
             q2 = q2,
-            deep = FALSE,
-            experiment = k,
+            experiment = k - 1,
             exp_type = "lme4",
             mse = mse,
             sig2e_est = sig2e_est,
