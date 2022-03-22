@@ -10,8 +10,8 @@ params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
                     X_non_linear = TRUE, Z_non_linear = FALSE, Z_embed_dim_pct = 10)
 mode <- "intercepts"
 sig2e <- 1.0
-sig2b_list <- list(list(0.5, 5.0), list(0.5, 5.0), list(0.5, 5.0))
-q_list <- list(list(1000L), list(5000L), list(10000L))
+sig2b_list <- list(list(0.3, 3.0), list(0.3, 3.0), list(0.3, 3.0))
+q_list <- list(list(1000L), list(2000L), list(3000L))
 sig2bs_spatial <- NULL
 q_spatial <- NULL
 N <- 100000L
