@@ -50,7 +50,7 @@ Z_embed_dim_pct: 10
 batch: 100
 epochs: 500
 patience: 10
-verbose: True
+verbose: False
 log_params: False
 longitudinal_predict_future: False
 exp_types:
