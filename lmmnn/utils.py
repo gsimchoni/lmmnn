@@ -154,6 +154,10 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
         x_cols.extend(['C0'])
     df['y'] = y
     test_size = params['test_size'] if 'test_size' in params else 0.2
+    pred_future = params['longitudinal_predict_future'] if 'longitudinal_predict_future' in params and mode == 'slopes' else False
+    if  pred_future:
+        # test set is "the future" or those obs with largest t
+        df.sort_values('t', inplace=True)
     X_train, X_test, y_train, y_test = train_test_split(
-        df.drop('y', axis=1), df['y'], test_size=test_size)
+        df.drop('y', axis=1), df['y'], test_size=test_size, shuffle=not pred_future)
     return X_train, X_test, y_train, y_test, x_cols, dist_matrix
