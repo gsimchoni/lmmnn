@@ -11,7 +11,7 @@ except Exception:
 
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Layer, Input
+from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Input, Masking, SimpleRNN
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
 from tensorflow.keras import Model
 
@@ -243,6 +243,48 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
             b_hat.append(b_i)
         b_hat = np.array(b_hat)
     return b_hat
+
+
+def process_X_to_rnn(X, y, time2measure_dict, x_cols):
+    X['measure'] = X['t'].map(time2measure_dict)
+    X_rnn = X.pivot(index='z0', columns=['measure'], values = x_cols).fillna(0)
+    y_rnn = pd.concat([X[['z0', 'measure']], y], axis=1).pivot(index='z0', columns=['measure'], values = 'y').fillna(0)
+    rnn_cols = [(x_col, i) for x_col in x_cols for i in range(len(time2measure_dict))]
+    for i, col in enumerate(rnn_cols):
+        if col not in X_rnn.columns:
+            X_rnn.insert(loc=i, column=col, value=0)
+    for i in range(len(time2measure_dict)):
+        if i not in y_rnn.columns:
+            y_rnn.insert(loc=i, column=i, value=0)
+    X_rnn = X_rnn.values.reshape(-1,len(x_cols),len(time2measure_dict)).transpose([0,2,1])
+    y_rnn = y_rnn.values.reshape(-1,1,len(time2measure_dict)).transpose([0,2,1])
+    return X_rnn, y_rnn
+
+
+def reg_nn_rnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
+        patience, n_neurons, dropout, activation, mode, time2measure_dict,
+        n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False, ignore_RE=False):
+    X_train_rnn, y_train_rnn = process_X_to_rnn(X_train, y_train, time2measure_dict, x_cols)
+    X_test_rnn, y_test_rnn = process_X_to_rnn(X_test, y_test, time2measure_dict, x_cols) 
+    model = Sequential([
+        Masking(mask_value=.0, input_shape=(len(time2measure_dict), len(x_cols))),
+        SimpleRNN(10, activation='relu', return_sequences=True),
+        SimpleRNN(5, activation='relu', return_sequences=True),
+        SimpleRNN(1, activation='linear', return_sequences=True)
+    ])
+    model.compile(optimizer='adam', loss='mse')
+    callbacks = [EarlyStopping(
+        monitor='val_loss', patience=epochs if patience is None else patience)]
+    history = model.fit(X_train_rnn, y_train_rnn, batch_size=batch_size,
+                    epochs=epochs, validation_split=0.1, verbose=verbose,
+                    callbacks=callbacks)
+    y_pred = model.predict(X_test_rnn)
+    mse = np.mean((y_test_rnn[y_test_rnn != 0] - y_pred[y_test_rnn != 0])**2)
+    none_sigmas = [None for _ in range(n_sig2bs)]
+    none_sigmas_spatial = [None for _ in range(n_sig2bs_spatial)]
+    none_rhos = [None for _ in range(len(est_cors))]
+    none_weibull = [None, None] if mode == 'survival' else []
+    return mse, (None, none_sigmas, none_sigmas_spatial), none_rhos, none_weibull, len(history.history['loss'])
 
 
 def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
@@ -503,7 +545,7 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
         batch, epochs, patience, n_neurons, dropout, activation, reg_type,
         Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, n_sig2bs_spatial, est_cors,
-        dist_matrix, spatial_embed_neurons, verbose, log_params, idx):
+        dist_matrix, time2measure_dict, spatial_embed_neurons, verbose, log_params, idx):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_ohe_or_ignore(
@@ -526,6 +568,10 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_menet(
             X_train, X_test, y_train, y_test, qs[0], x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
+    elif reg_type == 'rnn':
+        mse_rnn, sigmas, rhos, weibull, n_epochs = reg_nn_rnn(
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, mode, time2measure_dict, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
@@ -536,6 +582,8 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
             metric = np.nan
         else:
             metric = concordance_index(y_test, -y_pred, X_test['C0'])
+    elif mode == 'slopes' and reg_type == 'rnn':
+        metric = mse_rnn
     else:
         metric = np.mean((y_pred - y_test)**2)
     return NNResult(metric, sigmas, rhos, weibull, n_epochs, end - start)

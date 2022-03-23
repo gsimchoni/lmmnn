@@ -58,3 +58,4 @@ exp_types:
   - 'ignore'
   - 'ohe'
   - 'embeddings'
+  - 'rnn'
