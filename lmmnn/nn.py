@@ -11,7 +11,7 @@ except Exception:
 
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Input, Masking, SimpleRNN
+from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Input, Masking, LSTM
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
 from tensorflow.keras import Model
 
@@ -268,9 +268,9 @@ def reg_nn_rnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     X_test_rnn, y_test_rnn = process_X_to_rnn(X_test, y_test, time2measure_dict, x_cols) 
     model = Sequential([
         Masking(mask_value=.0, input_shape=(len(time2measure_dict), len(x_cols))),
-        SimpleRNN(10, activation='relu', return_sequences=True),
-        SimpleRNN(5, activation='relu', return_sequences=True),
-        SimpleRNN(1, activation='linear', return_sequences=True)
+        LSTM(5, return_sequences=True),
+        LSTM(3, return_sequences=True),
+        Dense(1)
     ])
     model.compile(optimizer='adam', loss='mse')
     callbacks = [EarlyStopping(
