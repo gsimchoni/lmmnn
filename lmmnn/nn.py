@@ -269,7 +269,6 @@ def reg_nn_rnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     model = Sequential([
         Masking(mask_value=.0, input_shape=(len(time2measure_dict), len(x_cols))),
         LSTM(5, return_sequences=True),
-        LSTM(3, return_sequences=True),
         Dense(1)
     ])
     model.compile(optimizer='adam', loss='mse')
