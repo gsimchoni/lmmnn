@@ -54,6 +54,3 @@ verbose: False
 log_params: False
 exp_types:
   - 'lmmnn'
-  - 'ignore'
-  - 'ohe'
-  - 'embeddings'

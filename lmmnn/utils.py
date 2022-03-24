@@ -15,7 +15,8 @@ NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_co
                                  'N', 'qs', 'sig2e', 'p_censor', 'sig2bs', 'rhos', 'sig2bs_spatial', 'q_spatial',
                                  'k', 'batch', 'epochs', 'patience',
                                  'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'n_sig2bs_spatial', 'estimated_cors',
-                                 'dist_matrix', 'verbose', 'n_neurons', 'dropout', 'activation', 'spatial_embed_neurons', 'log_params',
+                                 'dist_matrix', 'time2measure_dict', 'verbose', 'n_neurons', 'dropout', 'activation',
+                                 'spatial_embed_neurons', 'log_params',
                                  'weibull_lambda', 'weibull_nu'])
 
 def get_dummies(vec, vec_max):
@@ -54,6 +55,7 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
     else:
         Xbeta = params['fixed_intercept'] + X @ betas
     dist_matrix = None
+    time2measure_dict = None
     if params['X_non_linear']:
         fX = Xbeta * np.cos(Xbeta) + 2 * X[:, 0] * X[:, 1]
     else:
@@ -108,6 +110,7 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
         df['t'] = t
         df['z0'] = Z_idx
         x_cols.append('t')
+        time2measure_dict = {t: i for i, t in enumerate(np.sort(df['t'].unique()))}
     if mode in ['spatial', 'spatial_embedded', 'spatial_and_categoricals']:
         coords = np.stack([np.random.uniform(-10, 10, q_spatial), np.random.uniform(-10, 10, q_spatial)], axis=1)
         # ind = np.lexsort((coords[:, 1], coords[:, 0]))    
@@ -160,4 +163,4 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
         df.sort_values('t', inplace=True)
     X_train, X_test, y_train, y_test = train_test_split(
         df.drop('y', axis=1), df['y'], test_size=test_size, shuffle=not pred_future)
-    return X_train, X_test, y_train, y_test, x_cols, dist_matrix
+    return X_train, X_test, y_train, y_test, x_cols, dist_matrix, time2measure_dict
