@@ -1,4 +1,5 @@
 import time
+import gc
 import numpy as np
 import pandas as pd
 from scipy import sparse
@@ -10,6 +11,7 @@ except Exception:
     pass
 
 import tensorflow as tf
+import tensorflow.keras.backend as K
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Input, Masking, LSTM
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
@@ -574,6 +576,8 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
+    K.clear_session()
+    gc.collect()
     if mode == 'glmm':
         metric = roc_auc_score(y_test, y_pred)
     elif mode == 'survival':
