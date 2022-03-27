@@ -19,9 +19,9 @@ q_spatial_list:
   - 10000
 q_list:
   -
-    - 5000
+    - 3000
   -
-    - 5000
+    - 3000
 rho_list: []
 N_list:
   - 100000
