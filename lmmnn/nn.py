@@ -222,10 +222,10 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     model.eval()
     likelihood.eval()
     with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
-        y_pred = likelihood(model(test_x_gp, test_x_mlp)).loc.numpy()
-    sig2e_est = likelihood.noise.detach().numpy()[0]
+        y_pred = likelihood(model(test_x_gp, test_x_mlp)).loc.cpu().numpy()
+    sig2e_est = likelihood.noise.detach().cpu().numpy()[0]
     none_sigmas = [None for _ in range(n_sig2bs)]
-    sig2b_spatial_est = model.gp_layer.covar_module.base_kernel.outputscale.detach().numpy().item()
+    sig2b_spatial_est = model.gp_layer.covar_module.base_kernel.outputscale.detach().cpu().numpy().item()
     none_rhos = [None for _ in range(len(est_cors))]
     none_weibull = [None, None] if mode == 'survival' else []
     return y_pred, (sig2e_est, none_sigmas, [sig2b_spatial_est, None]), none_rhos, none_weibull, len(train_loss)
@@ -329,11 +329,11 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
     model.eval()
     likelihood.eval()
     with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
-        y_pred = likelihood(model(test_x_gp, test_x_mlp)).loc.numpy()
-    sig2e_est = likelihood.noise.detach().numpy()[0]
+        y_pred = likelihood(model(test_x_gp, test_x_mlp)).loc.cpu().numpy()
+    sig2e_est = likelihood.noise.detach().cpu().numpy()[0]
     none_sigmas = [None for _ in range(n_sig2bs)]
-    sig2b_spatial_outputscale_est = model.gp_layer.covar_module.outputscale.detach().numpy().item()
-    sig2b_spatial_lengthscale_est = model.gp_layer.covar_module.base_kernel.lengthscale.detach().numpy()[0][0]
+    sig2b_spatial_outputscale_est = model.gp_layer.covar_module.outputscale.detach().cpu().numpy().item()
+    sig2b_spatial_lengthscale_est = model.gp_layer.covar_module.base_kernel.lengthscale.detach().cpu().numpy()[0][0]
     none_rhos = [None for _ in range(len(est_cors))]
     none_weibull = [None, None] if mode == 'survival' else []
     return y_pred, (sig2e_est, none_sigmas, [sig2b_spatial_outputscale_est, sig2b_spatial_lengthscale_est]), none_rhos, none_weibull, len(train_loss)
