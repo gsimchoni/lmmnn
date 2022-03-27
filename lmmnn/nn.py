@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
 from tensorflow._api.v2 import random
 try:
     from lifelines.utils import concordance_index
@@ -16,11 +17,14 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Input, Masking, LSTM
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
 from tensorflow.keras import Model
+import torch
 
-from lmmnn.utils import NNResult, get_cov_mat, get_dummies
+from lmmnn.utils import NNResult, get_dummies
 from lmmnn.callbacks import LogEstParams, EarlyStoppingWithSigmasConvergence
 from lmmnn.layers import NLL
 from lmmnn.menet import menet_fit, menet_predict
+from lmmnn.calc_b_hat import *
+from lmmnn.gpytorch_classes import *
 
 
 def add_layers_sequential(model, n_neurons, dropout, activation, input_dim):
@@ -71,182 +75,6 @@ def process_one_hot_encoding(X_train, X_test, x_cols):
     return X_train_new, X_test_new
 
 
-def get_D_est(qs, sig2bs):
-    D_hat = sparse.eye(np.sum(qs))
-    D_hat.setdiag(np.repeat(sig2bs, qs))
-    return D_hat
-
-
-def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs_spatial,
-    Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix, weibull_ests):
-    experimental = False
-    if mode in ['intercepts', 'spatial_and_categoricals']:
-        if Z_non_linear or len(qs) > 1 or mode == 'spatial_and_categoricals':
-            delta_loc = 0
-            if mode == 'spatial_and_categoricals':
-                delta_loc = 1
-            gZ_trains = []
-            for k in range(len(sig2bs)):
-                gZ_train = get_dummies(X_train['z' + str(k + delta_loc)].values, qs[k])
-                if Z_non_linear:
-                    W_est = model.get_layer('Z_embed' + str(k)).get_weights()[0]
-                    gZ_train = gZ_train @ W_est
-                gZ_trains.append(gZ_train)
-            if Z_non_linear:
-                if X_train.shape[0] > 10000:
-                    samp = np.random.choice(X_train.shape[0], 10000, replace=False)
-                else:
-                    samp = np.arange(X_train.shape[0])
-                gZ_train = np.hstack(gZ_trains)
-                gZ_train = gZ_train[samp]
-                n_cats = ls
-            else:
-                gZ_train = sparse.hstack(gZ_trains)
-                n_cats = qs
-                samp = np.arange(X_train.shape[0])
-                if not experimental:
-                    if mode == 'spatial_and_categoricals' and X_train.shape[0] > 10000:
-                        samp = np.random.choice(X_train.shape[0], 10000, replace=False)
-                    elif X_train.shape[0] > 100000:
-                        # Z linear, multiple categoricals, V is relatively sparse, will solve with sparse.linalg.lsqr
-                        # consider sampling or "inducing points" approach if matrix is huge
-                        # samp = np.random.choice(X_train.shape[0], 100000, replace=False)
-                        pass
-                gZ_train = gZ_train.tocsr()[samp]
-            if not experimental:
-                D = get_D_est(n_cats, sig2bs)
-                V = gZ_train @ D @ gZ_train.T + sparse.eye(gZ_train.shape[0]) * sig2e
-                if mode == 'spatial_and_categoricals':
-                    gZ_train_spatial = get_dummies(X_train['z0'].values, q_spatial)
-                    D_spatial = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
-                    gZ_train_spatial = gZ_train_spatial[samp]
-                    V += gZ_train_spatial @ D_spatial @ gZ_train_spatial.T
-                    gZ_train = sparse.hstack([gZ_train, gZ_train_spatial])
-                    D = sparse.block_diag((D, D_spatial))
-                    V_inv_y = np.linalg.solve(V, y_train.values[samp] - y_pred_tr[samp])
-                else:
-                    if Z_non_linear:
-                        V_inv_y = np.linalg.solve(V, y_train.values[samp] - y_pred_tr[samp])
-                    else:
-                        V_inv_y = sparse.linalg.lsqr(V, y_train.values[samp] - y_pred_tr[samp])[0]
-                b_hat = D @ gZ_train.T @ V_inv_y
-            else:
-                if mode == 'spatial_and_categoricals':
-                    raise ValueError('experimental inverse not yet implemented in this mode')
-                D_inv = get_D_est(n_cats, 1 / sig2bs)
-                A = gZ_train.T @ gZ_train / sig2e + D_inv
-                b_hat = np.linalg.inv(A.toarray()) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
-                b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
-        else:
-            b_hat = []
-            for i in range(qs[0]):
-                i_vec = X_train['z0'] == i
-                n_i = i_vec.sum()
-                if n_i > 0:
-                    y_bar_i = y_train[i_vec].mean()
-                    y_pred_i = y_pred_tr[i_vec].mean()
-                    # BP(b_i) = (n_i * sig2b / (sig2a + n_i * sig2b)) * (y_bar_i - y_pred_bar_i)
-                    b_i = n_i * sig2bs[0] * (y_bar_i - y_pred_i) / (sig2e + n_i * sig2bs[0])
-                else:
-                    b_i = 0
-                b_hat.append(b_i)
-            b_hat = np.array(b_hat)
-    elif mode == 'slopes':
-        q = qs[0]
-        Z0 = get_dummies(X_train['z0'], q)
-        t = X_train['t'].values
-        N = X_train.shape[0]
-        Z_list = [Z0]
-        for k in range(1, len(sig2bs)):
-            Z_list.append(sparse.spdiags(t ** k, 0, N, N) @ Z0)
-        gZ_train = sparse.hstack(Z_list)
-        cov_mat = get_cov_mat(sig2bs, rhos, est_cors)
-        if not experimental:
-            D = sparse.kron(cov_mat, sparse.eye(q)) + sig2e * sparse.eye(q * len(sig2bs))
-            V = gZ_train @ D @ gZ_train.T + sparse.eye(gZ_train.shape[0]) * sig2e
-            V_inv_y = sparse.linalg.lsqr(V, y_train.values - y_pred_tr)[0]
-            b_hat = D @ gZ_train.T @ V_inv_y
-        else:
-            D = sparse.kron(cov_mat, np.eye(q)) + sig2e * np.eye(q * len(sig2bs))
-            D_inv = np.linalg.inv(D)
-            A = gZ_train.T @ gZ_train / sig2e + D_inv
-            b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values - y_pred_tr)
-            b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
-    elif mode == 'glmm':
-        nGQ = 5
-        x_ks, w_ks = np.polynomial.hermite.hermgauss(nGQ)
-        a = np.unique(X_train['z0'])
-        b_hat_numerators = []
-        b_hat_denominators = []
-        q = qs[0]
-        for i in range(q):
-            if i in a:
-                i_vec = X_train['z0'] == i
-                y_i = y_train.values[i_vec]
-                f_i = y_pred_tr[i_vec]
-                yf = np.dot(y_i, f_i)
-                k_sum_num = 0
-                k_sum_den = 0
-                for k in range(nGQ):
-                    sqrt2_sigb_xk = np.sqrt(2) * np.sqrt(sig2bs[0]) * x_ks[k]
-                    y_sum_x = y_i.sum() * sqrt2_sigb_xk
-                    log_gamma_sum = np.sum(np.log(1 + np.exp(f_i + sqrt2_sigb_xk)))
-                    k_exp = np.exp(yf + y_sum_x - log_gamma_sum) * w_ks[k] / np.sqrt(np.pi)
-                    k_sum_num = k_sum_num + sqrt2_sigb_xk * k_exp
-                    k_sum_den = k_sum_den + k_exp
-                b_hat_numerators.append(k_sum_num)
-                if k_sum_den == 0.0:
-                    b_hat_denominators.append(1)
-                else:
-                    b_hat_denominators.append(k_sum_den)
-            else:
-                b_hat_numerators.append(0)
-                b_hat_denominators.append(1)
-        b_hat = np.array(b_hat_numerators) / np.array(b_hat_denominators)
-    elif mode == 'spatial':
-        gZ_train = get_dummies(X_train['z0'].values, q_spatial)
-        D = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
-        N = gZ_train.shape[0]
-        if X_train.shape[0] > 10000:
-            samp = np.random.choice(X_train.shape[0], 10000, replace=False)
-        else:
-            samp = np.arange(X_train.shape[0])
-        gZ_train = gZ_train[samp]
-        V = gZ_train @ D @ gZ_train.T + np.eye(gZ_train.shape[0]) * sig2e
-        V_inv_y = np.linalg.solve(V, y_train.values[samp] - y_pred_tr[samp])
-        b_hat = D @ gZ_train.T @ V_inv_y
-        # A = gZ_train.T @ gZ_train / sig2e + D_inv
-        # A_inv_Zt = np.linalg.inv(A) @ gZ_train.T
-        # b_hat = A_inv_Zt / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
-        # b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
-    elif mode == 'spatial_embedded':
-        loc_df = X_train[['D1', 'D2']]
-        last_layer = Model(inputs = model.input[2], outputs = model.layers[-2].output)
-        gZ_train = last_layer.predict([loc_df])
-        if X_train.shape[0] > 10000:
-            samp = np.random.choice(X_train.shape[0], 10000, replace=False)
-        else:
-            samp = np.arange(X_train.shape[0])
-        gZ_train = gZ_train[samp]
-        n_cats = ls
-        D_inv = get_D_est(n_cats, 1 / sig2bs_spatial)
-        A = gZ_train.T @ gZ_train / sig2e + D_inv
-        b_hat = np.linalg.inv(A) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
-        b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
-    elif mode == 'survival':
-        Hs = weibull_ests[0] * (y_train ** weibull_ests[1])
-        b_hat = []
-        for i in range(qs[0]):
-            i_vec = X_train['z0'] == i
-            D_i = X_train['C0'][i_vec].sum()
-            A_i = 1 / sig2bs[0] + D_i
-            C_i = 1 / sig2bs[0] + np.sum(Hs[i_vec] * np.exp(y_pred_tr[i_vec]))
-            b_i = A_i / C_i
-            b_hat.append(b_i)
-        b_hat = np.array(b_hat)
-    return b_hat
-
-
 def process_X_to_rnn(X, y, time2measure_dict, x_cols):
     X['measure'] = X['t'].map(time2measure_dict)
     X_rnn = X.pivot(index='z0', columns=['measure'], values = x_cols).fillna(0)
@@ -265,7 +93,7 @@ def process_X_to_rnn(X, y, time2measure_dict, x_cols):
 
 def reg_nn_rnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         patience, n_neurons, dropout, activation, mode, time2measure_dict,
-        n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False, ignore_RE=False):
+        n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False):
     X_train_rnn, y_train_rnn = process_X_to_rnn(X_train, y_train, time2measure_dict, x_cols)
     X_test_rnn, y_test_rnn = process_X_to_rnn(X_test, y_test, time2measure_dict, x_cols) 
     model = Sequential([
@@ -318,6 +146,197 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     none_rhos = [None for _ in range(len(est_cors))]
     none_weibull = [None, None] if mode == 'survival' else []
     return y_pred, (None, none_sigmas, none_sigmas_spatial), none_rhos, none_weibull, len(history.history['loss'])
+
+
+def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
+        patience, n_neurons, dropout, activation, mode,
+        n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False):
+    x_cols_mlp = X_train.columns[X_train.columns.str.startswith('X')]
+    x_cols_gp = X_train.columns[X_train.columns.str.startswith('D')]
+
+    X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train, test_size=0.1)
+    train_x_mlp = torch.Tensor(X_train[x_cols_mlp].values)
+    train_x_gp = torch.Tensor(X_train[x_cols_gp].values)
+    train_y = torch.Tensor(y_train.values)
+    valid_x_mlp = torch.Tensor(X_valid[x_cols_mlp].values)
+    valid_x_gp = torch.Tensor(X_valid[x_cols_gp].values)
+    valid_y = torch.Tensor(y_valid.values)
+    test_x_mlp = torch.Tensor(X_test[x_cols_mlp].values)
+    test_x_gp = torch.Tensor(X_test[x_cols_gp].values)
+    test_y = torch.Tensor(y_test.values)
+
+    if torch.cuda.is_available():
+        train_x_mlp, train_x_gp, train_y, valid_x_mlp, valid_x_gp, valid_y, test_x_mlp, test_x_gp, test_y = train_x_mlp.cuda(), train_x_gp.cuda(), train_y.cuda(), valid_x_mlp.cuda(), valid_x_gp.cuda(), valid_y.cuda(), test_x_mlp.cuda(), test_x_gp.cuda(), test_y.cuda()
+
+    likelihood = gpytorch.likelihoods.GaussianLikelihood()
+    model = DKLModel(train_x_gp, train_y, likelihood, MLP(X_train[x_cols_mlp].shape[1], n_neurons, dropout, activation))
+
+    if torch.cuda.is_available():
+        model = model.cuda()
+        likelihood = likelihood.cuda()
+    
+    optimizer = torch.optim.Adam([
+        {'params': model.mlp.parameters()},
+        {'params': model.gp_layer.covar_module.parameters()},
+        {'params': model.gp_layer.mean_module.parameters()},
+        {'params': likelihood.parameters()},
+    ])
+
+    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model.gp_layer)
+
+    def train():
+        best_val_loss = np.Inf
+        es_counter = 0
+        train_losses = []
+        val_losses = []
+        for i in range(epochs):
+            model.train()
+            likelihood.train()
+            # Zero backprop gradients
+            optimizer.zero_grad()
+            # Get output from model
+            train_output = model(train_x_gp, train_x_mlp)
+            # Calc loss and backprop derivatives
+            train_loss = -mll(train_output, train_y)
+            train_loss.backward()
+            optimizer.step()
+            train_losses.append(train_loss.item())
+
+            model.eval()
+            likelihood.eval()
+            with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var(), gpytorch.settings.cholesky_jitter(1e-3):
+                valid_output = model(valid_x_gp, valid_x_mlp)
+                val_loss = -mll(valid_output, valid_y).item()
+            val_losses.append(val_loss)
+            if verbose:
+                print(f'epoch: {i}, loss: {train_loss.item():.3f}, val_loss: {val_loss:.3f}')
+            if val_loss < best_val_loss:
+                es_counter = 0
+                best_val_loss = val_loss
+            elif es_counter >= patience:
+                break
+            else:
+                es_counter += 1
+        return train_losses, val_losses
+    train_loss, valid_loss = train()
+    model.eval()
+    likelihood.eval()
+    with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
+        y_pred = likelihood(model(test_x_gp, test_x_mlp)).loc.numpy()
+    sig2e_est = likelihood.noise.detach().numpy()[0]
+    none_sigmas = [None for _ in range(n_sig2bs)]
+    sig2b_spatial_est = model.gp_layer.covar_module.base_kernel.outputscale.detach().numpy().item()
+    none_rhos = [None for _ in range(len(est_cors))]
+    none_weibull = [None, None] if mode == 'survival' else []
+    return y_pred, (sig2e_est, none_sigmas, [sig2b_spatial_est, None]), none_rhos, none_weibull, len(train_loss)
+
+
+def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
+        patience, n_neurons, dropout, activation, mode,
+        n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False):
+    x_cols_mlp = X_train.columns[X_train.columns.str.startswith('X')]
+    x_cols_gp = X_train.columns[X_train.columns.str.startswith('D')]
+
+    X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train, test_size=0.1)
+    train_x_mlp = torch.Tensor(X_train[x_cols_mlp].values)
+    train_x_gp = torch.Tensor(X_train[x_cols_gp].values)
+    train_y = torch.Tensor(y_train.values)
+    valid_x_mlp = torch.Tensor(X_valid[x_cols_mlp].values)
+    valid_x_gp = torch.Tensor(X_valid[x_cols_gp].values)
+    valid_y = torch.Tensor(y_valid.values)
+    test_x_mlp = torch.Tensor(X_test[x_cols_mlp].values)
+    test_x_gp = torch.Tensor(X_test[x_cols_gp].values)
+    test_y = torch.Tensor(y_test.values)
+
+    if torch.cuda.is_available():
+        train_x_mlp, train_x_gp, train_y, valid_x_mlp, valid_x_gp, valid_y, test_x_mlp, test_x_gp, test_y = train_x_mlp.cuda(), train_x_gp.cuda(), train_y.cuda(), valid_x_mlp.cuda(), valid_x_gp.cuda(), valid_y.cuda(), test_x_mlp.cuda(), test_x_gp.cuda(), test_y.cuda()
+
+    train_dataset = torch.utils.data.TensorDataset(train_x_mlp, train_x_gp, train_y)
+    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    valid_dataset = torch.utils.data.TensorDataset(valid_x_mlp, valid_x_gp, valid_y)
+    valid_dataloader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size)
+
+    test_dataset = torch.utils.data.TensorDataset(test_x_mlp, test_x_gp, test_y)
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
+
+    inducing_points = torch.Tensor(X_train[x_cols_gp].values[:500, :])
+    likelihood = gpytorch.likelihoods.GaussianLikelihood()
+    model = SVDKLModel(inducing_points, MLP(X_train[x_cols_mlp].shape[1], n_neurons, dropout, activation))
+
+    if torch.cuda.is_available():
+        model = model.cuda()
+        likelihood = likelihood.cuda()
+    
+    optimizer = torch.optim.Adam([
+        {'params': model.mlp.parameters()},
+        {'params': model.gp_layer.covar_module.parameters()},
+        {'params': model.gp_layer.mean_module.parameters()},
+        {'params': likelihood.parameters()},
+    ])
+
+    mll = gpytorch.mlls.VariationalELBO(likelihood, model.gp_layer, num_data=train_y.size(0))
+
+    def train_epoch(train_dataloader, valid_dataloader, model, optimizer, mll):
+        model.train()
+        likelihood.train()
+        train_losses = []
+        for X_mlp, X_gp, y in train_dataloader:
+            if torch.cuda.is_available():
+                X_mlp, X_gp, y = X_mlp.cuda(), X_gp.cuda(), y.cuda()
+            optimizer.zero_grad()
+            output = model(X_gp, X_mlp)
+            loss = -mll(output, y)
+            loss.backward(retain_graph=True)
+            train_losses.append(loss.item())
+            optimizer.step()
+        train_loss = np.average(train_losses)
+        model.eval()
+        likelihood.eval()
+        val_losses = []
+        for X_mlp, X_gp, y in valid_dataloader:
+            if torch.cuda.is_available():
+                X_mlp, X_gp, y = X_mlp.cuda(), X_gp.cuda(), y.cuda()
+            with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var(), gpytorch.settings.cholesky_jitter(1e-3):
+                output = model(X_gp, X_mlp)
+                loss = -mll(output, y).item()
+            val_losses.append(loss)
+        val_loss = np.average(val_losses)
+        return train_loss, val_loss
+
+    def train(train_dataloader, valid_dataloader, model, optimizer, mll):
+        train_loss = []
+        valid_loss = []
+        best_val_loss = np.Inf
+        es_counter = 0
+        for i in range(epochs):
+            train_loss_epoch, val_loss_epoch = train_epoch(train_dataloader, valid_dataloader, model, optimizer, mll)
+            train_loss.append(train_loss_epoch)
+            valid_loss.append(val_loss_epoch)
+            if verbose:
+                print(f'epoch: {i}, loss: {train_loss_epoch:.3f}, val_loss: {val_loss_epoch:.3f}')
+            if val_loss_epoch < best_val_loss:
+                es_counter = 0
+                best_val_loss = val_loss_epoch
+            elif es_counter >= patience:
+                break
+            else:
+                es_counter += 1
+        return train_loss, valid_loss
+            
+    train_loss, valid_loss = train(train_dataloader, valid_dataloader, model, optimizer, mll)
+    
+    model.eval()
+    likelihood.eval()
+    with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
+        y_pred = likelihood(model(test_x_gp, test_x_mlp)).loc.numpy()
+    sig2e_est = likelihood.noise.detach().numpy()[0]
+    none_sigmas = [None for _ in range(n_sig2bs)]
+    sig2b_spatial_outputscale_est = model.gp_layer.covar_module.outputscale.detach().numpy().item()
+    sig2b_spatial_lengthscale_est = model.gp_layer.covar_module.base_kernel.lengthscale.detach().numpy()[0][0]
+    none_rhos = [None for _ in range(len(est_cors))]
+    none_weibull = [None, None] if mode == 'survival' else []
+    return y_pred, (sig2e_est, none_sigmas, [sig2b_spatial_outputscale_est, sig2b_spatial_lengthscale_est]), none_rhos, none_weibull, len(train_loss)
 
 
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
@@ -573,6 +592,14 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
         mse_rnn, sigmas, rhos, weibull, n_epochs = reg_nn_rnn(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode, time2measure_dict, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
+    elif reg_type == 'dkl':
+        y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_dkl(
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
+    elif reg_type == 'svdkl':
+        y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_svdkl(
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
