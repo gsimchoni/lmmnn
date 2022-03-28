@@ -1,50 +1,43 @@
-from matplotlib.pyplot import new_figure_manager
 import torch
 try:
     import gpytorch
 except Exception:
     pass
 
-class SVDKLGaussianProcessLayer(gpytorch.models.ApproximateGP):
-    def __init__(self, inducing_points):
-        variational_distribution = gpytorch.variational.CholeskyVariationalDistribution(inducing_points.size(0))
-        variational_strategy = gpytorch.variational.VariationalStrategy(self, inducing_points, variational_distribution, learn_inducing_locations=True)
-        super(SVDKLGaussianProcessLayer, self).__init__(variational_strategy)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
-
-class DKLGaussianProcessLayer(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood):
-        super(DKLGaussianProcessLayer, self).__init__(train_x, train_y, likelihood)
+class DKLModel(gpytorch.models.ExactGP):
+    def __init__(self, train_x, train_y, likelihood, mlp):
+        super(DKLModel, self).__init__(train_x, train_y, likelihood,)
         self.mean_module = gpytorch.means.ConstantMean()
         self.covar_module = gpytorch.kernels.GridInterpolationKernel(
             gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()),
             num_dims=2, grid_size=100
         )
-
-class DKLModel(gpytorch.Module):
-    def __init__(self, train_x, train_y, likelihood, mlp):
-        super(DKLModel, self).__init__()
-        self.gp_layer = DKLGaussianProcessLayer(train_x, train_y, likelihood)
         self.mlp = mlp
-
+    
     def forward(self, x_gp, x_mlp):
         projected_x = self.mlp(x_mlp)
-        mean_x = self.gp_layer.mean_module(x_gp) + projected_x.flatten()
-        covar_x = self.gp_layer.covar_module(x_gp)
+        mean_x = self.mean_module(x_gp) + projected_x.flatten()
+        covar_x = self.covar_module(x_gp)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
-class SVDKLModel(gpytorch.Module):
+
+class SVDKLModel(gpytorch.models.ApproximateGP):
     def __init__(self, inducing_points, mlp):
-        super(SVDKLModel, self).__init__()
-        self.gp_layer = SVDKLGaussianProcessLayer(inducing_points)
+        variational_distribution = gpytorch.variational.CholeskyVariationalDistribution(inducing_points.size(0))
+        variational_strategy = gpytorch.variational.VariationalStrategy(self, inducing_points, variational_distribution, learn_inducing_locations=True)
+        super(SVDKLModel, self).__init__(variational_strategy)
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
         self.mlp = mlp
 
-    def forward(self, x_gp, x_mlp):
+    def forward(self, x_gp, x_mlp, n_inducing_points):
         projected_x = self.mlp(x_mlp)
-        mean_x = self.gp_layer.mean_module(x_gp) + projected_x.flatten()
-        covar_x = self.gp_layer.covar_module(x_gp)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+        mean_x = self.mean_module(x_gp)
+        mean_x2 = mean_x.clone()
+        mean_x2[n_inducing_points:] += projected_x.flatten()
+        covar_x = self.covar_module(x_gp)
+        return gpytorch.distributions.MultivariateNormal(mean_x2, covar_x)
+
 
 class MLP(torch.nn.Module):
     def __init__(self, data_dim, n_neurons, dropout, activation):
@@ -70,7 +63,6 @@ class MLP(torch.nn.Module):
         self.layers.append(torch.nn.Linear(prev_n_neurons, 1))
 
     def forward(self, x):
-        # logits = self.nn(x)
         y = x
         for i in range(len(self.layers)):
             y = self.layers[i](y)

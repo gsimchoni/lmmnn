@@ -169,20 +169,15 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         train_x_mlp, train_x_gp, train_y, valid_x_mlp, valid_x_gp, valid_y, test_x_mlp, test_x_gp, test_y = train_x_mlp.cuda(), train_x_gp.cuda(), train_y.cuda(), valid_x_mlp.cuda(), valid_x_gp.cuda(), valid_y.cuda(), test_x_mlp.cuda(), test_x_gp.cuda(), test_y.cuda()
 
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    model = DKLModel(train_x_gp, train_y, likelihood, MLP(X_train[x_cols_mlp].shape[1], n_neurons, dropout, activation))
+    model = DKLModel((train_x_gp, train_x_mlp), train_y, likelihood, MLP(X_train[x_cols_mlp].shape[1], n_neurons, dropout, activation))
 
     if torch.cuda.is_available():
         model = model.cuda()
         likelihood = likelihood.cuda()
-    
-    optimizer = torch.optim.Adam([
-        {'params': model.mlp.parameters()},
-        {'params': model.gp_layer.covar_module.parameters()},
-        {'params': model.gp_layer.mean_module.parameters()},
-        {'params': likelihood.parameters()},
-    ])
 
-    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model.gp_layer)
+    optimizer = torch.optim.Adam(model.parameters())
+
+    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
     def train():
         best_val_loss = np.Inf
@@ -195,6 +190,7 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
             # Zero backprop gradients
             optimizer.zero_grad()
             # Get output from model
+            # train_output = model(torch.cat([train_x_gp, train_x_mlp], dim = 1))
             train_output = model(train_x_gp, train_x_mlp)
             # Calc loss and backprop derivatives
             train_loss = -mll(train_output, train_y)
@@ -225,7 +221,7 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         y_pred = likelihood(model(test_x_gp, test_x_mlp)).loc.cpu().numpy()
     sig2e_est = likelihood.noise.detach().cpu().numpy()[0]
     none_sigmas = [None for _ in range(n_sig2bs)]
-    sig2b_spatial_est = model.gp_layer.covar_module.base_kernel.outputscale.detach().cpu().numpy().item()
+    sig2b_spatial_est = model.covar_module.base_kernel.outputscale.detach().cpu().numpy().item()
     none_rhos = [None for _ in range(len(est_cors))]
     none_weibull = [None, None] if mode == 'survival' else []
     return y_pred, (sig2e_est, none_sigmas, [sig2b_spatial_est, None]), none_rhos, none_weibull, len(train_loss)
@@ -260,7 +256,8 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
     test_dataset = torch.utils.data.TensorDataset(test_x_mlp, test_x_gp, test_y)
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
 
-    inducing_points = torch.Tensor(X_train[x_cols_gp].values[:500, :])
+    n_inducing_points = 500
+    inducing_points = torch.Tensor(X_train[x_cols_gp].values[:n_inducing_points, :])
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
     model = SVDKLModel(inducing_points, MLP(X_train[x_cols_mlp].shape[1], n_neurons, dropout, activation))
 
@@ -268,14 +265,9 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
         model = model.cuda()
         likelihood = likelihood.cuda()
     
-    optimizer = torch.optim.Adam([
-        {'params': model.mlp.parameters()},
-        {'params': model.gp_layer.covar_module.parameters()},
-        {'params': model.gp_layer.mean_module.parameters()},
-        {'params': likelihood.parameters()},
-    ])
+    optimizer = torch.optim.Adam(model.parameters())
 
-    mll = gpytorch.mlls.VariationalELBO(likelihood, model.gp_layer, num_data=train_y.size(0))
+    mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=train_y.size(0))
 
     def train_epoch(train_dataloader, valid_dataloader, model, optimizer, mll):
         model.train()
@@ -285,7 +277,7 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
             if torch.cuda.is_available():
                 X_mlp, X_gp, y = X_mlp.cuda(), X_gp.cuda(), y.cuda()
             optimizer.zero_grad()
-            output = model(X_gp, X_mlp)
+            output = model(X_gp, x_mlp=X_mlp, prior=False, n_inducing_points=n_inducing_points)
             loss = -mll(output, y)
             loss.backward(retain_graph=True)
             train_losses.append(loss.item())
@@ -298,7 +290,7 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
             if torch.cuda.is_available():
                 X_mlp, X_gp, y = X_mlp.cuda(), X_gp.cuda(), y.cuda()
             with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var(), gpytorch.settings.cholesky_jitter(1e-3):
-                output = model(X_gp, X_mlp)
+                output = model(X_gp, x_mlp=X_mlp, prior=False, n_inducing_points=n_inducing_points)
                 loss = -mll(output, y).item()
             val_losses.append(loss)
         val_loss = np.average(val_losses)
@@ -329,11 +321,11 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
     model.eval()
     likelihood.eval()
     with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
-        y_pred = likelihood(model(test_x_gp, test_x_mlp)).loc.cpu().numpy()
+        y_pred = likelihood(model(test_x_gp, x_mlp=test_x_mlp, prior=False, n_inducing_points = n_inducing_points)).loc.cpu().numpy()
     sig2e_est = likelihood.noise.detach().cpu().numpy()[0]
     none_sigmas = [None for _ in range(n_sig2bs)]
-    sig2b_spatial_outputscale_est = model.gp_layer.covar_module.outputscale.detach().cpu().numpy().item()
-    sig2b_spatial_lengthscale_est = model.gp_layer.covar_module.base_kernel.lengthscale.detach().cpu().numpy()[0][0]
+    sig2b_spatial_outputscale_est = model.covar_module.outputscale.detach().cpu().numpy().item()
+    sig2b_spatial_lengthscale_est = model.covar_module.base_kernel.lengthscale.detach().cpu().numpy()[0][0]
     none_rhos = [None for _ in range(len(est_cors))]
     none_weibull = [None, None] if mode == 'survival' else []
     return y_pred, (sig2e_est, none_sigmas, [sig2b_spatial_outputscale_est, sig2b_spatial_lengthscale_est]), none_rhos, none_weibull, len(train_loss)
