@@ -190,7 +190,6 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
             # Zero backprop gradients
             optimizer.zero_grad()
             # Get output from model
-            # train_output = model(torch.cat([train_x_gp, train_x_mlp], dim = 1))
             train_output = model(train_x_gp, train_x_mlp)
             # Calc loss and backprop derivatives
             train_loss = -mll(train_output, train_y)

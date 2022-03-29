@@ -7,7 +7,7 @@ except Exception:
 class DKLModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood, mlp):
         super(DKLModel, self).__init__(train_x, train_y, likelihood,)
-        self.mean_module = gpytorch.means.ConstantMean()
+        self.mean_module = gpytorch.means.ZeroMean()
         self.covar_module = gpytorch.kernels.GridInterpolationKernel(
             gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()),
             num_dims=2, grid_size=100
@@ -26,7 +26,7 @@ class SVDKLModel(gpytorch.models.ApproximateGP):
         variational_distribution = gpytorch.variational.CholeskyVariationalDistribution(inducing_points.size(0))
         variational_strategy = gpytorch.variational.VariationalStrategy(self, inducing_points, variational_distribution, learn_inducing_locations=True)
         super(SVDKLModel, self).__init__(variational_strategy)
-        self.mean_module = gpytorch.means.ConstantMean()
+        self.mean_module = gpytorch.means.ZeroMean()
         self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
         self.mlp = mlp
 
