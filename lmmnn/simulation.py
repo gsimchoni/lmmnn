@@ -73,6 +73,22 @@ def iterate_reg_types(counter, res_df, out_file, nn_in, exp_types, verbose):
             rnn_res = summarize_sim(nn_in, res, 'rnn')
             res_df.loc[next(counter)] = rnn_res
             logger.debug('  Finished RNN.')
+    if 'dkl' in exp_types:
+        if verbose:
+            logger.info('mode DKL:')
+        if nn_in.mode == 'spatial':
+            res = run_reg_nn(nn_in, 'dkl')
+            dkl_res = summarize_sim(nn_in, res, 'dkl')
+            res_df.loc[next(counter)] = dkl_res
+            logger.debug('  Finished DKL.')
+    if 'svdkl' in exp_types:
+        if verbose:
+            logger.info('mode SVDKL:')
+        if nn_in.mode == 'spatial':
+            res = run_reg_nn(nn_in, 'svdkl')
+            svdkl_res = summarize_sim(nn_in, res, 'svdkl')
+            res_df.loc[next(counter)] = svdkl_res
+            logger.debug('  Finished SVDKL.')
     res_df.to_csv(out_file)
 
 
