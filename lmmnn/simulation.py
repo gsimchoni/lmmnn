@@ -89,6 +89,14 @@ def iterate_reg_types(counter, res_df, out_file, nn_in, exp_types, verbose):
             svdkl_res = summarize_sim(nn_in, res, 'svdkl')
             res_df.loc[next(counter)] = svdkl_res
             logger.debug('  Finished SVDKL.')
+    if 'cnn' in exp_types:
+        if verbose:
+            logger.info('mode CNN:')
+        if nn_in.mode == 'spatial':
+            res = run_reg_nn(nn_in, 'cnn')
+            cnn_res = summarize_sim(nn_in, res, 'cnn')
+            res_df.loc[next(counter)] = cnn_res
+            logger.debug('  Finished CNN.')
     res_df.to_csv(out_file)
 
 

@@ -14,7 +14,7 @@ except Exception:
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Input, Masking, LSTM
+from tensorflow.keras.layers import Dense, Dropout, Embedding, Concatenate, Reshape, Input, Masking, LSTM, Conv2D, MaxPool2D, Flatten
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
 from tensorflow.keras import Model
 import torch
@@ -144,6 +144,68 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     history = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs,
                         validation_split=0.1, callbacks=callbacks, verbose=verbose)
     y_pred = model.predict(X_test).reshape(X_test.shape[0])
+    none_sigmas = [None for _ in range(n_sig2bs)]
+    none_sigmas_spatial = [None for _ in range(n_sig2bs_spatial)]
+    none_rhos = [None for _ in range(len(est_cors))]
+    none_weibull = [None, None] if mode == 'survival' else []
+    return y_pred, (None, none_sigmas, none_sigmas_spatial), none_rhos, none_weibull, len(history.history['loss'])
+
+
+def process_X_to_images(X, min_X = -10, max_X = 10, resolution = 100):
+    X_images = np.zeros((X.shape[0], resolution, resolution, 1), dtype=np.uint8)
+    bins = np.linspace(min_X, max_X, resolution + 1)
+    X_binned = np.digitize(X, bins) - 1
+    i = np.arange(X.shape[0])
+    j = X_binned[:, 0]
+    k = resolution - 1 - X_binned[:, 1]
+    X_images[i, k, j] = 1
+    return X_images
+
+
+def add_layers_cnn(cnn_in):
+    x = Conv2D(32, (2, 2), activation='relu')(cnn_in)
+    x = MaxPool2D((2, 2))(x)
+    x = Conv2D(64, (2, 2), activation='relu')(x)
+    x = MaxPool2D((2, 2))(x)
+    x = Conv2D(32, (2, 2), activation='relu')(x)
+    x = MaxPool2D((2, 2))(x)
+    x = Conv2D(16, (2, 2), activation='relu')(x)
+    x = MaxPool2D((2, 2))(x)
+    x = Flatten()(x)
+    x = Dense(10, activation='relu')(x)
+    return x
+
+
+def reg_nn_cnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
+        patience, n_neurons, dropout, activation, mode,
+        n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False):
+    x_cols_mlp = x_cols # X_train.columns[X_train.columns.str.startswith('X')]
+    x_cols_cnn = X_train.columns[X_train.columns.str.startswith('D')]
+    X_train_features, X_test_features = X_train[x_cols_mlp], X_test[x_cols_mlp]
+    X_train_images, X_test_images = process_X_to_images(X_train[x_cols_cnn]), process_X_to_images(X_test[x_cols_cnn])
+    if mode == 'glmm':
+        loss = 'binary_crossentropy'
+        last_layer_activation = 'sigmoid'
+    else:
+        loss = 'mse'
+        last_layer_activation = 'linear'
+    
+    resolution = 100
+    cnn_in = Input((resolution, resolution, 1))
+    cnn_out = add_layers_cnn(cnn_in)
+    mlp_in = Input(len(x_cols_mlp))
+    mlp_out = add_layers_functional(mlp_in, n_neurons, dropout, activation, len(x_cols_mlp))
+    concat = Concatenate()([mlp_out, cnn_out])
+    output = Dense(1, activation=last_layer_activation)(concat)
+    model = Model(inputs=[mlp_in, cnn_in], outputs=output)
+
+    model.compile(loss=loss, optimizer='adam')
+
+    callbacks = [EarlyStopping(
+        monitor='val_loss', patience=epochs if patience is None else patience)]
+    history = model.fit([X_train_features, X_train_images], y_train, batch_size=batch_size, epochs=epochs,
+                        validation_split=0.1, callbacks=callbacks, verbose=verbose)
+    y_pred = model.predict([X_test_features, X_test_images]).reshape(X_test_features.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_sigmas_spatial = [None for _ in range(n_sig2bs_spatial)]
     none_rhos = [None for _ in range(len(est_cors))]
@@ -592,6 +654,10 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
             n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
     elif reg_type == 'svdkl':
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_svdkl(
+            X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
+            n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
+    elif reg_type == 'cnn':
+        y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_cnn(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
     else:

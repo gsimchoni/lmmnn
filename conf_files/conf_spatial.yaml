@@ -54,3 +54,4 @@ exp_types:
   - 'embeddings'
   - 'dkl'
   - 'svdkl'
+  - 'cnn'
