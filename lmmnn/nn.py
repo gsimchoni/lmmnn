@@ -24,7 +24,10 @@ from lmmnn.callbacks import LogEstParams, EarlyStoppingWithSigmasConvergence
 from lmmnn.layers import NLL
 from lmmnn.menet import menet_fit, menet_predict
 from lmmnn.calc_b_hat import *
-from lmmnn.gpytorch_classes import *
+try:
+    from lmmnn.gpytorch_classes import *
+except Exception:
+    pass
 
 
 def add_layers_sequential(model, n_neurons, dropout, activation, input_dim):
