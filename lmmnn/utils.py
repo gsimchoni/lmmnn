@@ -17,7 +17,7 @@ NNInput = namedtuple('NNInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_co
                                  'Z_non_linear', 'Z_embed_dim_pct', 'mode', 'n_sig2bs', 'n_sig2bs_spatial', 'estimated_cors',
                                  'dist_matrix', 'time2measure_dict', 'verbose', 'n_neurons', 'dropout', 'activation',
                                  'spatial_embed_neurons', 'log_params',
-                                 'weibull_lambda', 'weibull_nu'])
+                                 'weibull_lambda', 'weibull_nu', 'resolution'])
 
 def get_dummies(vec, vec_max):
     vec_size = vec.size

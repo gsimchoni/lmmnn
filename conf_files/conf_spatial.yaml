@@ -47,6 +47,7 @@ patience: 10
 verbose: False
 log_params: False
 test_size: 0.2
+resolution: 100
 exp_types:
   - 'lmmnn'
   - 'ignore'
@@ -54,3 +55,4 @@ exp_types:
   - 'embeddings'
   - 'dkl'
   - 'svdkl'
+  - 'cnn'
