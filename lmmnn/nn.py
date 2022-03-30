@@ -151,7 +151,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
     return y_pred, (None, none_sigmas, none_sigmas_spatial), none_rhos, none_weibull, len(history.history['loss'])
 
 
-def process_X_to_images(X, min_X = -10, max_X = 10, resolution = 100):
+def process_X_to_images(X, resolution = 100, min_X = -10, max_X = 10):
     X_images = np.zeros((X.shape[0], resolution, resolution, 1), dtype=np.uint8)
     bins = np.linspace(min_X, max_X, resolution + 1)
     X_binned = np.digitize(X, bins) - 1
@@ -178,11 +178,12 @@ def add_layers_cnn(cnn_in):
 
 def reg_nn_cnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         patience, n_neurons, dropout, activation, mode,
-        n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False):
-    x_cols_mlp = x_cols # X_train.columns[X_train.columns.str.startswith('X')]
+        n_sig2bs, n_sig2bs_spatial, est_cors, resolution, verbose=False):
+    x_cols_mlp = x_cols
     x_cols_cnn = X_train.columns[X_train.columns.str.startswith('D')]
     X_train_features, X_test_features = X_train[x_cols_mlp], X_test[x_cols_mlp]
-    X_train_images, X_test_images = process_X_to_images(X_train[x_cols_cnn]), process_X_to_images(X_test[x_cols_cnn])
+    X_train_images = process_X_to_images(X_train[x_cols_cnn], resolution)
+    X_test_images = process_X_to_images(X_test[x_cols_cnn], resolution)
     if mode == 'glmm':
         loss = 'binary_crossentropy'
         last_layer_activation = 'sigmoid'
@@ -190,7 +191,6 @@ def reg_nn_cnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         loss = 'mse'
         last_layer_activation = 'linear'
     
-    resolution = 100
     cnn_in = Input((resolution, resolution, 1))
     cnn_out = add_layers_cnn(cnn_in)
     mlp_in = Input(len(x_cols_mlp))
@@ -621,7 +621,7 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
         batch, epochs, patience, n_neurons, dropout, activation, reg_type,
         Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, n_sig2bs_spatial, est_cors,
-        dist_matrix, time2measure_dict, spatial_embed_neurons, verbose, log_params, idx):
+        dist_matrix, time2measure_dict, spatial_embed_neurons, resolution, verbose, log_params, idx):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_ohe_or_ignore(
@@ -659,7 +659,7 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
     elif reg_type == 'cnn':
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_cnn(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,
-            n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, verbose)
+            n_neurons, dropout, activation, mode, n_sig2bs, n_sig2bs_spatial, est_cors, resolution, verbose)
     else:
         raise ValueError(reg_type + 'is an unknown reg_type')
     end = time.time()
