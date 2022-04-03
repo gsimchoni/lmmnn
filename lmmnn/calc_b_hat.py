@@ -72,19 +72,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                 b_hat = np.linalg.inv(A.toarray()) @ gZ_train.T / sig2e @ (y_train.values[samp] - y_pred_tr[samp])
                 b_hat = np.asarray(b_hat).reshape(gZ_train.shape[1])
         else:
-            b_hat = []
-            for i in range(qs[0]):
-                i_vec = X_train['z0'] == i
-                n_i = i_vec.sum()
-                if n_i > 0:
-                    y_bar_i = y_train[i_vec].mean()
-                    y_pred_i = y_pred_tr[i_vec].mean()
-                    # BP(b_i) = (n_i * sig2b / (sig2a + n_i * sig2b)) * (y_bar_i - y_pred_bar_i)
-                    b_i = n_i * sig2bs[0] * (y_bar_i - y_pred_i) / (sig2e + n_i * sig2bs[0])
-                else:
-                    b_i = 0
-                b_hat.append(b_i)
-            b_hat = np.array(b_hat)
+            b_hat = single_random_intercept_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs)
     elif mode == 'slopes':
         q = qs[0]
         Z0 = get_dummies(X_train['z0'], q)
@@ -178,5 +166,21 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
             b_i = A_i / C_i
             b_hat.append(b_i)
         b_hat = np.array(b_hat)
+    return b_hat
+
+def single_random_intercept_b_hat(X_train, y_train, y_pred_tr, qs, sig2e, sig2bs):
+    b_hat = []
+    for i in range(qs[0]):
+        i_vec = X_train['z0'] == i
+        n_i = i_vec.sum()
+        if n_i > 0:
+            y_bar_i = y_train[i_vec].mean()
+            y_pred_i = y_pred_tr[i_vec].mean()
+                    # BP(b_i) = (n_i * sig2b / (sig2a + n_i * sig2b)) * (y_bar_i - y_pred_bar_i)
+            b_i = n_i * sig2bs[0] * (y_bar_i - y_pred_i) / (sig2e + n_i * sig2bs[0])
+        else:
+            b_i = 0
+        b_hat.append(b_i)
+    b_hat = np.array(b_hat)
     return b_hat
 
