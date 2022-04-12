@@ -22,8 +22,9 @@ class NLL(Layer):
                 self.max_loc = dist_matrix.shape[1] - 1
                 self.spatial_delta = int(0.0 * dist_matrix.shape[1])
         if self.mode == 'slopes':
-            self.rhos = tf.Variable(
-                rhos, name='rhos', constraint=lambda x: tf.clip_by_value(x, -1.0, 1.0))
+            if len(est_cors) > 0:
+                self.rhos = tf.Variable(
+                    rhos, name='rhos', constraint=lambda x: tf.clip_by_value(x, -1.0, 1.0))
             self.est_cors = est_cors
         if self.mode == 'glmm':
             self.nGQ = 5
@@ -41,7 +42,10 @@ class NLL(Layer):
             return None, self.sig2bs.numpy(), [], []
         if self.mode == 'survival':
             return None, self.sig2bs.numpy(), [], [self.weibull_lambda.numpy(), self.weibull_nu.numpy()]
-        return self.sig2e.numpy(), self.sig2bs.numpy(), self.rhos.numpy(), []
+        if hasattr(self, 'rhos'):
+            return self.sig2e.numpy(), self.sig2bs.numpy(), self.rhos.numpy(), []
+        else:
+            return self.sig2e.numpy(), self.sig2bs.numpy(), [], []
 
     def get_table(self, Z_idx):
         Z_unique, _ = tf.unique(Z_idx)

@@ -137,8 +137,8 @@ def simulation(out_file, params):
     n_sig2bs = len(params['sig2b_list'])
     n_sig2bs_spatial = len(params['sig2b_spatial_list'])
     n_categoricals = len(params['q_list'])
-    n_rhos = len(params['rho_list'])
-    estimated_cors = params['estimated_cors']
+    n_rhos = len([] if params['rho_list'] is None else params['rho_list'])
+    estimated_cors = [] if params['estimated_cors'] is None else params['estimated_cors']
     mode = params['mode']
     spatial_embed_out_dim_name = []
     p_censor_name = []
@@ -159,9 +159,9 @@ def simulation(out_file, params):
         assert n_sig2bs == n_categoricals
     elif mode == 'slopes':
         assert n_categoricals == 1
-        assert n_rhos == len(estimated_cors)
+        # assert n_rhos == len(estimated_cors)
         rhos_names =  list(map(lambda x: 'rho' + str(x), range(n_rhos)))
-        rhos_est_names =  list(map(lambda x: 'rho_est' + str(x), range(n_rhos)))
+        rhos_est_names =  list(map(lambda x: 'rho_est' + str(x), range(len(estimated_cors))))
     elif mode == 'glmm':
         assert n_categoricals == 1
         assert n_sig2bs == n_categoricals
@@ -233,7 +233,7 @@ def simulation(out_file, params):
                                         nn_in = NNInput(X_train, X_test, y_train, y_test, x_cols, N, qs, sig2e, p_censor,
                                                         sig2bs, rhos, sig2bs_spatial, q_spatial, k, params['batch'], params['epochs'], params['patience'],
                                                         params['Z_non_linear'], params['Z_embed_dim_pct'], mode, n_sig2bs, n_sig2bs_spatial,
-                                                        params['estimated_cors'], dist_matrix, time2measure_dict, params['verbose'],
+                                                        estimated_cors, dist_matrix, time2measure_dict, params['verbose'],
                                                         params['n_neurons'], params['dropout'], params['activation'],
                                                         params['spatial_embed_neurons'], params['log_params'],
                                                         params['weibull_lambda'], params['weibull_nu'], resolution)
