@@ -87,7 +87,7 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
         if not experimental:
             D = sparse.kron(cov_mat, sparse.eye(q)) + sig2e * sparse.eye(q * len(sig2bs))
             V = gZ_train @ D @ gZ_train.T + sparse.eye(gZ_train.shape[0]) * sig2e
-            V_inv_y = sparse.linalg.lsqr(V, y_train.values - y_pred_tr)[0]
+            V_inv_y = sparse.linalg.cg(V, y_train.values - y_pred_tr)[0]
             b_hat = D @ gZ_train.T @ V_inv_y
         else:
             D = sparse.kron(cov_mat, np.eye(q)) + sig2e * np.eye(q * len(sig2bs))
