@@ -3,8 +3,6 @@ library(lme4)
 library(rsample)
 library(glue)
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 unzip("data/sgemm_product_dataset.zip", exdir = "data")
 df <- read_csv("data/sgemm_product.csv")
 df$z0 <- seq_len(dim(df)[1]) - 1

@@ -3,8 +3,6 @@ library(lme4)
 library(rsample)
 library(glue)
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 df <- read_csv("data/imdb_df2.csv")
 colnames(df) <- janitor::make_clean_names(colnames(df))
 x_cols <- colnames(df)[-which(colnames(df) %in% c("director_id", "type_id", "score"))]

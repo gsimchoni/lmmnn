@@ -3,8 +3,6 @@ library(lme4)
 library(rsample)
 library(glue)
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 df <- read_csv("data/spotify_df.csv")
 
 x_cols <- colnames(df)[-which(colnames(df) %in% c("artist_id", "album_id", "playlist_id", "subgenre_id", "danceability",

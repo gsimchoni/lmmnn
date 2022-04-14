@@ -4,8 +4,6 @@ library(rsample)
 library(recipes)
 library(glue)
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 df <- read_csv("data/ukb_triglyc_cancer.csv")
 
 x_cols <- c('weight', 'height_standing', 'gender', 'age', 'smoking',

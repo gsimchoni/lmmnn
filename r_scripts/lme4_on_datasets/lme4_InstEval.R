@@ -3,8 +3,6 @@ library(lme4)
 library(rsample)
 library(glue)
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 df <- as_tibble(InstEval)
 
 x_cols <- colnames(df)[-which(colnames(df) %in% c("s", "d", "dept", "y"))]

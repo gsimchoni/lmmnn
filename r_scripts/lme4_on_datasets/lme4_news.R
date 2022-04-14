@@ -3,8 +3,6 @@ library(lme4)
 library(rsample)
 library(glue)
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 df <- read_csv("data/news_df2.csv")
 df$Facebook <- log(df$Facebook + 1)
 x_cols <- colnames(df)[-which(colnames(df) %in% c("title_id", "source_id", "Facebook",
