@@ -25,6 +25,7 @@ from lmmnn.layers import NLL
 from lmmnn.menet import menet_fit, menet_predict
 from lmmnn.calc_b_hat import *
 try:
+    import gpytorch
     from lmmnn.gpytorch_classes import *
 except Exception:
     pass
@@ -216,8 +217,8 @@ def reg_nn_cnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
 def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         patience, n_neurons, dropout, activation, mode,
         n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False):
-    x_cols_mlp = X_train.columns[X_train.columns.str.startswith('X')]
-    x_cols_gp = X_train.columns[X_train.columns.str.startswith('D')]
+    x_cols_mlp = [col for col in x_cols if col not in ['D1', 'D2']]
+    x_cols_gp = ['D1', 'D2']
 
     X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train, test_size=0.1)
     train_x_mlp = torch.Tensor(X_train[x_cols_mlp].values)
@@ -294,8 +295,8 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
 def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         patience, n_neurons, dropout, activation, mode,
         n_sig2bs, n_sig2bs_spatial, est_cors, verbose=False):
-    x_cols_mlp = X_train.columns[X_train.columns.str.startswith('X')]
-    x_cols_gp = X_train.columns[X_train.columns.str.startswith('D')]
+    x_cols_mlp = [col for col in x_cols if col not in ['D1', 'D2']]
+    x_cols_gp = ['D1', 'D2']
 
     X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train, test_size=0.1)
     train_x_mlp = torch.Tensor(X_train[x_cols_mlp].values)
