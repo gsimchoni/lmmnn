@@ -140,7 +140,7 @@ class NLL(Layer):
             V_inv = tf.linalg.inv(V)
             V_inv_y = K.dot(V_inv, y_true - y_pred)
         else:
-            V_inv_y = tf.linalg.lstsq(V, y_true - y_pred)
+            V_inv_y = tf.linalg.solve(V, y_true - y_pred)
         loss2 = K.dot(K.transpose(y_true - y_pred), V_inv_y)
         # loss1 = tf.math.log(tf.linalg.det(V))
         _, loss1 = tf.linalg.slogdet(V)
