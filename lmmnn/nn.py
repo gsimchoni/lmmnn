@@ -5,6 +5,7 @@ import pandas as pd
 from scipy import sparse
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
 from tensorflow._api.v2 import random
 try:
     from lifelines.utils import concordance_index
@@ -274,7 +275,7 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
             if val_loss < best_val_loss:
                 es_counter = 0
                 best_val_loss = val_loss
-            elif es_counter >= patience:
+            elif es_counter >= patience - 1:
                 break
             else:
                 es_counter += 1
@@ -319,7 +320,7 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
     valid_dataloader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size)
 
     test_dataset = torch.utils.data.TensorDataset(test_x_mlp, test_x_gp, test_y)
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     n_inducing_points = 500
     inducing_points = torch.Tensor(X_train[x_cols_gp].values[:n_inducing_points, :])
@@ -375,18 +376,30 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
             if val_loss_epoch < best_val_loss:
                 es_counter = 0
                 best_val_loss = val_loss_epoch
-            elif es_counter >= patience:
+            elif es_counter >= patience - 1:
                 break
             else:
                 es_counter += 1
         return train_loss, valid_loss
-            
-    train_loss, valid_loss = train(train_dataloader, valid_dataloader, model, optimizer, mll)
     
-    model.eval()
-    likelihood.eval()
-    with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
-        y_pred = likelihood(model(test_x_gp, x_mlp=test_x_mlp, prior=False, n_inducing_points = n_inducing_points)).loc.cpu().numpy()
+    def test(test_dataloader, model):
+        model.eval()
+        likelihood.eval()
+        y_pred_list = []
+        for X_mlp, X_gp, y in test_dataloader:
+            batch_no = len(y_pred_list)
+            if verbose and batch_no > 0 and batch_no % 100 == 0:
+                print(f'testing batch: {len(y_pred_list)}')
+            if torch.cuda.is_available():
+                X_mlp, X_gp, y = X_mlp.cuda(), X_gp.cuda(), y.cuda()
+            with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var(), gpytorch.settings.cholesky_jitter(1e-3):
+                y_pred_batch = likelihood(model(X_gp, x_mlp=X_mlp, prior=False, n_inducing_points = n_inducing_points)).loc.cpu().numpy()
+                y_pred_list.append(y_pred_batch)
+        y_pred = np.concatenate(y_pred_list)
+        return y_pred
+    
+    train_loss, valid_loss = train(train_dataloader, valid_dataloader, model, optimizer, mll)
+    y_pred = test(test_dataloader, model)
     sig2e_est = likelihood.noise.detach().cpu().numpy()[0]
     none_sigmas = [None for _ in range(n_sig2bs)]
     sig2b_spatial_outputscale_est = model.covar_module.outputscale.detach().cpu().numpy().item()
