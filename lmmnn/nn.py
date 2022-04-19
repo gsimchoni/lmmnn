@@ -269,7 +269,7 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
                 val_loss = -mll(valid_output, valid_y).item()
             val_losses.append(val_loss)
             if verbose:
-                print(f'epoch: {i}, loss: {train_loss.item():.3f}, val_loss: {val_loss:.3f}')
+                print(f'epoch: {i}, loss: {train_loss.item():.4f}, val_loss: {val_loss:.4f}')
             if val_loss < best_val_loss:
                 es_counter = 0
                 best_val_loss = val_loss
@@ -370,7 +370,7 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
             train_loss.append(train_loss_epoch)
             valid_loss.append(val_loss_epoch)
             if verbose:
-                print(f'epoch: {i}, loss: {train_loss_epoch:.3f}, val_loss: {val_loss_epoch:.3f}')
+                print(f'epoch: {i}, loss: {train_loss_epoch:.4f}, val_loss: {val_loss_epoch:.4f}')
             if val_loss_epoch < best_val_loss:
                 es_counter = 0
                 best_val_loss = val_loss_epoch
@@ -385,9 +385,6 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
         likelihood.eval()
         y_pred_list = []
         for X_mlp, X_gp, y in test_dataloader:
-            batch_no = len(y_pred_list)
-            if verbose and batch_no > 0 and batch_no % 100 == 0:
-                print(f'testing batch: {len(y_pred_list)}')
             if torch.cuda.is_available():
                 X_mlp, X_gp, y = X_mlp.cuda(), X_gp.cuda(), y.cuda()
             with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var(), gpytorch.settings.cholesky_jitter(1e-3):
