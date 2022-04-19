@@ -5,8 +5,6 @@ import pandas as pd
 from scipy import sparse
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
-from sklearn.utils import shuffle
-from tensorflow._api.v2 import random
 try:
     from lifelines.utils import concordance_index
 except Exception:
@@ -411,7 +409,7 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
 
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
         mode, n_sig2bs, n_sig2bs_spatial, est_cors, dist_matrix, spatial_embed_neurons,
-        verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False, idx=0):
+        verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False, idx=0, shuffle=False):
     if mode in ['spatial', 'spatial_embedded', 'spatial_and_categoricals']:
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     if mode == 'survival':
@@ -500,7 +498,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
         X_test_z_cols = [X_test[z_col] for z_col in z_cols]
     history = model.fit([X_train[x_cols], y_train] + X_train_z_cols, None,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
-                        callbacks=callbacks, verbose=verbose, shuffle=False)
+                        callbacks=callbacks, verbose=verbose, shuffle=shuffle)
 
     sig2e_est, sig2b_ests, rho_ests, weibull_ests = model.layers[-1].get_vars()
     if mode in ['spatial', 'spatial_embedded']:
@@ -635,7 +633,7 @@ def reg_nn_menet(X_train, X_test, y_train, y_test, q, x_cols, batch_size, epochs
 def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
         batch, epochs, patience, n_neurons, dropout, activation, reg_type,
         Z_non_linear, Z_embed_dim_pct, mode, n_sig2bs, n_sig2bs_spatial, est_cors,
-        dist_matrix, time2measure_dict, spatial_embed_neurons, resolution, verbose, log_params, idx):
+        dist_matrix, time2measure_dict, spatial_embed_neurons, resolution, verbose, log_params, idx, shuffle):
     start = time.time()
     if reg_type == 'ohe':
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_ohe_or_ignore(
@@ -645,7 +643,8 @@ def reg_nn(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols,
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_lmm(
             X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch, epochs, patience,
             n_neurons, dropout, activation, mode,
-            n_sig2bs, n_sig2bs_spatial, est_cors, dist_matrix, spatial_embed_neurons, verbose, Z_non_linear, Z_embed_dim_pct, log_params, idx)
+            n_sig2bs, n_sig2bs_spatial, est_cors, dist_matrix, spatial_embed_neurons, verbose,
+            Z_non_linear, Z_embed_dim_pct, log_params, idx, shuffle)
     elif reg_type == 'ignore':
         y_pred, sigmas, rhos, weibull, n_epochs = reg_nn_ohe_or_ignore(
             X_train, X_test, y_train, y_test, qs, x_cols, batch, epochs, patience,

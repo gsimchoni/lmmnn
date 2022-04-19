@@ -108,7 +108,7 @@ def run_reg_nn(nn_in, reg_type):
         mode = nn_in.mode, n_sig2bs = nn_in.n_sig2bs, n_sig2bs_spatial = nn_in.n_sig2bs_spatial, est_cors = nn_in.estimated_cors,
         dist_matrix = nn_in.dist_matrix, time2measure_dict = nn_in.time2measure_dict,
         spatial_embed_neurons = nn_in.spatial_embed_neurons, resolution=nn_in.resolution,
-        verbose = nn_in.verbose, log_params = nn_in.log_params, idx = nn_in.k)
+        verbose = nn_in.verbose, log_params = nn_in.log_params, idx = nn_in.k, shuffle = nn_in.shuffle)
 
 
 def summarize_sim(nn_in, res, reg_type):
@@ -155,6 +155,7 @@ def simulation(out_file, params):
     q_spatial_list = [None]
     metric = 'mse'
     resolution = None
+    shuffle = params['shuffle'] if 'shuffle' in params else False
     if mode == 'intercepts':
         assert n_sig2bs == n_categoricals
     elif mode == 'slopes':
@@ -236,5 +237,5 @@ def simulation(out_file, params):
                                                         estimated_cors, dist_matrix, time2measure_dict, params['verbose'],
                                                         params['n_neurons'], params['dropout'], params['activation'],
                                                         params['spatial_embed_neurons'], params['log_params'],
-                                                        params['weibull_lambda'], params['weibull_nu'], resolution)
+                                                        params['weibull_lambda'], params['weibull_nu'], resolution, shuffle)
                                         iterate_reg_types(counter, res_df, out_file, nn_in, params['exp_types'], params['verbose'])

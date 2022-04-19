@@ -48,6 +48,7 @@ verbose: False
 log_params: False
 test_size: 0.2
 resolution: 100
+shuffle: False
 exp_types:
   - 'lmmnn'
   - 'ignore'
