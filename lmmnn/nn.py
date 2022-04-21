@@ -153,7 +153,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
 
 def process_X_to_images(X, resolution = 100, min_X = -10, max_X = 10):
     X_images = np.zeros((X.shape[0], resolution, resolution, 1), dtype=np.uint8)
-    bins = np.linspace(min_X, max_X, resolution + 1)
+    bins = np.linspace(min_X, max_X, resolution)
     X_binned = np.digitize(X, bins) - 1
     i = np.arange(X.shape[0])
     j = X_binned[:, 0]
