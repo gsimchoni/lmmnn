@@ -131,8 +131,9 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
         gZ_train = get_dummies(X_train['z0'].values, q_spatial)
         D = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
         N = gZ_train.shape[0]
-        if X_train.shape[0] > 10000:
-            samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+        # increase this as you can
+        if X_train.shape[0] > 30000:
+            samp = np.random.choice(X_train.shape[0], 30000, replace=False)
         else:
             samp = np.arange(X_train.shape[0])
         gZ_train = gZ_train[samp]
