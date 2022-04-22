@@ -13,7 +13,7 @@ def get_D_est(qs, sig2bs):
     return D_hat
 
 def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs_spatial,
-    Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix, weibull_ests):
+    Z_non_linear, model, ls, mode, rhos, est_cors, dist_matrix, weibull_ests, sample_n_train=10000):
     experimental = False
     if mode in ['intercepts', 'spatial_and_categoricals']:
         if Z_non_linear or len(qs) > 1 or mode == 'spatial_and_categoricals':
@@ -41,8 +41,8 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                 samp = np.arange(X_train.shape[0])
                 if not experimental:
                     # in spatial_and_categoricals increase this as you can
-                    if mode == 'spatial_and_categoricals' and X_train.shape[0] > 30000:
-                        samp = np.random.choice(X_train.shape[0], 30000, replace=False)
+                    if mode == 'spatial_and_categoricals' and X_train.shape[0] > sample_n_train:
+                        samp = np.random.choice(X_train.shape[0], sample_n_train, replace=False)
                     elif X_train.shape[0] > 100000:
                         # Z linear, multiple categoricals, V is relatively sparse, will solve with sparse.linalg.cg
                         # consider sampling or "inducing points" approach if matrix is huge
@@ -132,8 +132,8 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
         D = sig2bs_spatial[0] * np.exp(-dist_matrix / (2 * sig2bs_spatial[1]))
         N = gZ_train.shape[0]
         # increase this as you can
-        if X_train.shape[0] > 30000:
-            samp = np.random.choice(X_train.shape[0], 30000, replace=False)
+        if X_train.shape[0] > sample_n_train:
+            samp = np.random.choice(X_train.shape[0], sample_n_train, replace=False)
         else:
             samp = np.arange(X_train.shape[0])
         gZ_train = gZ_train[samp]
@@ -148,8 +148,8 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
         loc_df = X_train[['D1', 'D2']]
         last_layer = Model(inputs = model.input[2], outputs = model.layers[-2].output)
         gZ_train = last_layer.predict([loc_df])
-        if X_train.shape[0] > 10000:
-            samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+        if X_train.shape[0] > sample_n_train:
+            samp = np.random.choice(X_train.shape[0], sample_n_train, replace=False)
         else:
             samp = np.arange(X_train.shape[0])
         gZ_train = gZ_train[samp]

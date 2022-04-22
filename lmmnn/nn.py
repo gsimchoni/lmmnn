@@ -406,7 +406,7 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
 
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
         mode, n_sig2bs, n_sig2bs_spatial, est_cors, dist_matrix, spatial_embed_neurons,
-        verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False, idx=0, shuffle=False):
+        verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False, idx=0, shuffle=False, sample_n_train=10000):
     if mode in ['spatial', 'spatial_embedded', 'spatial_and_categoricals']:
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     if mode == 'survival':
@@ -509,7 +509,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
     y_pred_tr = model.predict(
         [X_train[x_cols], y_train] + X_train_z_cols).reshape(X_train.shape[0])
     b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e_est, sig2b_ests, sig2b_spatial_ests,
-                Z_non_linear, model, ls, mode, rho_ests, est_cors, dist_matrix, weibull_ests)
+                Z_non_linear, model, ls, mode, rho_ests, est_cors, dist_matrix, weibull_ests, sample_n_train)
     dummy_y_test = np.random.normal(size=y_test.shape)
     if mode in ['intercepts', 'glmm', 'spatial', 'spatial_and_categoricals']:
         if Z_non_linear or len(qs) > 1 or mode == 'spatial_and_categoricals':
