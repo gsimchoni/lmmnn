@@ -40,8 +40,9 @@ def calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e, sig2bs, sig2bs
                 n_cats = qs
                 samp = np.arange(X_train.shape[0])
                 if not experimental:
-                    if mode == 'spatial_and_categoricals' and X_train.shape[0] > 10000:
-                        samp = np.random.choice(X_train.shape[0], 10000, replace=False)
+                    # in spatial_and_categoricals increase this as you can
+                    if mode == 'spatial_and_categoricals' and X_train.shape[0] > 30000:
+                        samp = np.random.choice(X_train.shape[0], 30000, replace=False)
                     elif X_train.shape[0] > 100000:
                         # Z linear, multiple categoricals, V is relatively sparse, will solve with sparse.linalg.cg
                         # consider sampling or "inducing points" approach if matrix is huge

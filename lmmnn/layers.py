@@ -11,12 +11,12 @@ class NLL(Layer):
     def __init__(self, mode, sig2e, sig2bs, rhos = [], weibull_init = [], est_cors = [], Z_non_linear=False, dist_matrix=None):
         super(NLL, self).__init__(dynamic=False)
         self.sig2bs = tf.Variable(
-            sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
+            sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-18, np.infty))
         self.Z_non_linear = Z_non_linear
         self.mode = mode
         if self.mode in ['intercepts', 'slopes', 'spatial', 'spatial_embedded', 'spatial_and_categoricals']:
             self.sig2e = tf.Variable(
-                sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
+                sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-18, np.infty))
             if self.mode in ['spatial', 'spatial_and_categoricals']:
                 self.dist_matrix = dist_matrix
                 self.max_loc = dist_matrix.shape[1] - 1
