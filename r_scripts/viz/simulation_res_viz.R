@@ -5,8 +5,6 @@ library(extrafont)
 font_import()
 loadfonts(device="win") 
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 res <- read_csv("results/res_NL_100K_Z_n5.csv")
 
 exp_type_label_list <- c(Ignore = "ignore", OHE = "ohe",

@@ -2,9 +2,6 @@ library(tidyverse)
 library(reticulate)
 library(survival)
 
-
-setwd("C:/Users/gsimchoni/lmmnn")
-
 lmmnn_utils <- import("lmmnn.utils")
 
 weibull_lambda <- 1.0

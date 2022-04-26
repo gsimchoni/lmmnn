@@ -1,11 +1,14 @@
 library(tidyverse)
 library(patchwork)
 library(extrafont)
-#font_import()
+font_import()
 loadfonts(device="win") 
 
-df <- read_csv("~/res_grads_n100K_q1000_Z_categ5_colab.csv")
-# df <- df %>% slice(248:n())
+
+# g(Z) = Z, left panel ----------------------------------------------------
+
+df <- read_csv("data/data_for_viz/res_grads_n100K_q1000_Z_categ5_colab.csv")
+
 df %>% count(experiment)
 
 df_long <- df %>% pivot_longer(contains("grad"), "sig2", values_to = "grad") %>%
@@ -67,23 +70,20 @@ mean_profile <- df_long %>% group_by(epoch, sig2) %>%
   mutate(experiment = 0) %>%
   select(experiment, everything())
 
-# max_epochs <- 30
 max_y <- 12
 
 p1 <- df_long %>%
   filter(epoch <= max_epochs, sig2 != "sig2e_est") %>%
-  # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
   ggplot(aes(epoch, est, color = sig2, group = interaction(experiment, sig2))) +
   geom_line(alpha = 0.4) +
   geom_line(data = mean_profile %>% filter(epoch <= max_epochs, sig2 != "sig2e_est"), lwd = 1.2) +
-  # geom_hline(yintercept = 10.0, color = "blue", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 1.0, color = "#F8766D", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 2.0, color = "#A3A500", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 3.0, color = "#00BF7D", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 4.0, color = "#00B0F6", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 5.0, color = "#E76BF3", lty = 3, lwd = 1.2) +
-  # scale_y_log10() +
-  scale_y_continuous(breaks = c(1:5, 7, 9, 11), labels = c(1:5, 7, 9, 11), minor_breaks = 1:max_y, limits = c(0, max_y)) +
+  scale_y_continuous(breaks = c(1:5, 7, 9, 11), labels = c(1:5, 7, 9, 11),
+                     minor_breaks = 1:max_y, limits = c(0, max_y)) +
   scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
   scale_color_discrete(labels = c(
     expression(paste(hat(sigma)[b[1]]^2)),
@@ -110,12 +110,9 @@ mean_profile <- df_long %>% group_by(epoch, type) %>%
 
 p3 <- df_long %>%
   filter(epoch <= max_epochs) %>%
-  # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
   ggplot(aes(epoch, loss, color = type, group = interaction(experiment, type))) +
   geom_line(alpha = 0.4) +
   geom_line(data = mean_profile %>% filter(epoch <= max_epochs), lwd = 1.2) +
-  # geom_hline(yintercept = 0, color = "black", lty = 3, lwd = 1.2) +
-  # scale_y_log10() +
   scale_y_continuous(breaks = c(200, 400, 600), limits = c(0, 650)) +
   scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
   scale_color_manual(labels = c("train", "valid"), values = c("#eb3434", "#3a34eb")) +
@@ -126,20 +123,14 @@ p3 <- df_long %>%
         plot.title = element_text(hjust = 0, size = 14),
         plot.subtitle = element_text(hjust = 0, size = 12))
 
-p <- p1 / p2 / p3 
-p_Z <- p #+ plot_annotation(title = "Five categorical, g(Z) = Z",
-                    # caption = expression(paste("n = 100,000; ", " q = ", 1000, ", ",
-                    #                            sigma[b[1]]^2, " = ", 1, ", ",
-                    #                            sigma[b[2]]^2, " = ", 2, ", ",
-                    #                            sigma[b[3]]^2, " = ", 3, ", ",
-                    #                            sigma[b[4]]^2, " = ", 4, ", ",
-                    #                            sigma[b[5]]^2, " = ", 5, ", ")),
-                    # theme = theme(text = element_text(family = "Century", size = 16),
-                    #               plot.title = element_text(hjust = 0.5)))
-##############
+p_Z <- p1 / p2 / p3 
 
-df <- read_csv("~/res_params_categ5_gZ.csv")
-# df <- df %>% slice(248:n())
+
+# g(Z) = ZW, right panel --------------------------------------------------
+
+
+df <- read_csv("data/data_for_viz/res_params_categ5_gZ.csv")
+
 df %>% count(experiment)
 
 df_long <- df %>% pivot_longer(contains("grad"), "sig2", values_to = "grad") %>%
@@ -171,12 +162,6 @@ p2 <- df_long %>%
   geom_hline(yintercept = 0, color = "black", lty = 3, lwd = 1.2) +
   scale_y_continuous(breaks = c(-10, -5, 0), limits = c(-12, 2)) +
   scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
-  # scale_color_discrete(labels = c(
-  #   expression(paste("  ", nabla, sigma[b[1]]^2)),
-  #   expression(paste("  ", nabla, sigma[b[2]]^2)),
-  #   expression(paste("  ", nabla, sigma[b[3]]^2)),
-  #   expression(paste("  ", nabla, sigma[b[4]]^2)),
-  #   expression(paste("  ", nabla, sigma[b[5]]^2)))) +
   labs(y = NULL, color = NULL, x = NULL, subtitle = "") +
   guides(color = "none") +
   theme_bw() +
@@ -201,31 +186,20 @@ mean_profile <- df_long %>% group_by(epoch, sig2) %>%
   mutate(experiment = 0) %>%
   select(experiment, everything())
 
-# max_epochs <- 30
 max_y <- 12
 
 p1 <- df_long %>%
   filter(epoch <= max_epochs, sig2 != "sig2e_est") %>%
-  # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
   ggplot(aes(epoch, est, color = sig2, group = interaction(experiment, sig2))) +
   geom_line(alpha = 0.4) +
   geom_line(data = mean_profile %>% filter(epoch <= max_epochs, sig2 != "sig2e_est"), lwd = 1.2) +
-  # geom_hline(yintercept = 10.0, color = "blue", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 1.0, color = "#F8766D", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 2.0, color = "#A3A500", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 3.0, color = "#00BF7D", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 4.0, color = "#00B0F6", lty = 3, lwd = 1.2) +
   geom_hline(yintercept = 5.0, color = "#E76BF3", lty = 3, lwd = 1.2) +
-  # scale_y_log10() +
   scale_y_continuous(breaks = c(1:5, 7, 9, 11), labels = c(1:5, 7, 9, 11), minor_breaks = 1:max_y, limits = c(0, max_y)) +
-  # scale_y_continuous(breaks = seq(0, max_y, 10)) +
   scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
-  # scale_color_discrete(labels = c(
-  #   expression(paste(hat(sigma)[b[1]]^2)),
-  #   expression(paste(hat(sigma)[b[2]]^2)),
-  #   expression(paste(hat(sigma)[b[3]]^2)),
-  #   expression(paste(hat(sigma)[b[4]]^2)),
-  #   expression(paste(hat(sigma)[b[5]]^2)))) +
   labs(y = NULL, color = NULL, x = NULL,
        subtitle = NULL, title = "g(Z) = ZW") +
   guides(color = "none") +
@@ -246,12 +220,9 @@ mean_profile <- df_long %>% group_by(epoch, type) %>%
 
 p3 <- df_long %>%
   filter(epoch <= max_epochs) %>%
-  # mutate(experiment = experiment + 1, epoch = epoch + 1) %>%
   ggplot(aes(epoch, loss, color = type, group = interaction(experiment, type))) +
   geom_line(alpha = 0.4) +
   geom_line(data = mean_profile %>% filter(epoch <= max_epochs), lwd = 1.2) +
-  # geom_hline(yintercept = 0, color = "black", lty = 3, lwd = 1.2) +
-  # scale_y_log10() +
   scale_y_continuous(breaks = c(200, 400, 600), limits = c(0, 650)) +
   scale_x_continuous(breaks = seq(0, max_epochs, 10)) +
   scale_color_manual(labels = c("train", "valid"), values = c("#eb3434", "#3a34eb")) +
@@ -263,16 +234,11 @@ p3 <- df_long %>%
         plot.title = element_text(hjust = 0, size = 14),
         plot.subtitle = element_text(hjust = 0, size = 12))
 
-p <- p1 / p2 / p3 
-p_ZW <- p #+ plot_annotation(title = "Five categorical, g(Z) = ZW",
-                    # caption = expression(paste("n = 100,000; ", " q = ", 1000, ", ",
-                    #                            sigma[b[1]]^2, " = ", 1, ", ",
-                    #                            sigma[b[2]]^2, " = ", 2, ", ",
-                    #                            sigma[b[3]]^2, " = ", 3, ", ",
-                    #                            sigma[b[4]]^2, " = ", 4, ", ",
-                    #                            sigma[b[5]]^2, " = ", 5, ", ")),
-                    # theme = theme(text = element_text(family = "Century", size = 16),
-                    #               plot.title = element_text(hjust = 0.5)))
+p_ZW <- p1 / p2 / p3 
 
-p_Z | p_ZW #+ plot_annotation(tag_levels = c("A"))
-ggsave(path = "~/", filename = "lmmnn_categ5_ests_convergence.png", width = 8, height = 7, device="png", dpi=700)
+
+# Unite two panels --------------------------------------------------------
+
+
+p_Z | p_ZW
+ggsave("images/lmmnn_categ5_ests_convergence.png", width = 8, height = 7, device="png", dpi=700)

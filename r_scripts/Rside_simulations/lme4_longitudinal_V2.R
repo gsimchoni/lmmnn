@@ -3,8 +3,6 @@ library(reticulate)
 library(lme4)
 
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 lmmnn_utils <- import("lmmnn.utils")
 params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
                     X_non_linear = TRUE, Z_non_linear = FALSE, Z_embed_dim_pct = 10,

@@ -1,10 +1,7 @@
 library(tidyverse)
 library(reticulate)
-# library(lme4)
 library(gstat)
 library(sp)
-
-setwd("C:/Users/gsimchoni/lmmnn")
 
 lmmnn_utils <- import("lmmnn.utils")
 params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,

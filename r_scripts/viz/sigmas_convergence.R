@@ -4,7 +4,7 @@ library(extrafont)
 font_import()
 loadfonts(device="win") 
 
-df <- read_csv("C:/Users/gsimchoni/lmmnn/results/res_params_Z.csv")
+df <- read_csv("results/res_params_Z.csv")
 
 df %>% count(experiment)
 
@@ -70,7 +70,7 @@ p1 <- df_long %>%
         text = element_text(family = "Century", size = 16),
         plot.title = element_text(hjust = 0.5))
 
-df <- read_csv("C:/Users/gsimchoni/lmmnn/results/res_params_gZ.csv")
+df <- read_csv("results/res_params_gZ.csv")
 
 df_long <- df %>% pivot_longer(starts_with("sig2"), "sig2", values_to = "est") %>%
   mutate(epoch = epoch + 1) %>%

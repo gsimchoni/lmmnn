@@ -5,8 +5,6 @@ library(extrafont)
 font_import()
 loadfonts(device="win") 
 
-setwd("C:/Users/gsimchoni/lmmnn")
-
 RE1 <- read_csv("data/data_for_viz/RE_sig2b1.csv")
 Y1 <- read_csv("data/data_for_viz/y_test_sig2b1.csv")
 RE10 <- read_csv("data/data_for_viz/RE_sig2b10.csv")
@@ -74,7 +72,7 @@ p1 <- (p_scatter_b_sig2b1 | p_hist_n_sig2b1 | p_scatter_y_sig2b1)
 p2 <- (p_scatter_b_sig2b10 | p_hist_n_sig2b10 | p_scatter_y_sig2b10)
 p <- p1 / p2
 
-ggsave("sim_viz.png", p, device = "png", width = 16, height = 8, dpi = 300)
+ggsave("images/sim_viz.png", p, device = "png", width = 16, height = 8, dpi = 300)
 
 ############
 
@@ -164,4 +162,4 @@ celeba_hist_b <- celeba_ns %>%
 
 p2 <- (ukbjob_hist_b / ukbjob_scatter_y) | (drugs_hist_b / drugs_scatter_y) | (celeba_hist_b / celeba_scatter_y) | (airbnb_hist_b / airbnb_scatter_y)
 
-ggsave("real_viz.png", p2, device = "png", width = 16, height = 8, dpi = 300)
+ggsave("images/real_viz.png", p2, device = "png", width = 16, height = 8, dpi = 300)

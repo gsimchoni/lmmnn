@@ -7,9 +7,9 @@ loadfonts(device="win")
 # Spatial UKB sample
 
 # Read data
-ukb_df <- read_csv("C:/Users/gsimchoni/ukb/ukb_protein_cancer.csv")
+ukb_df <- read_csv("ukb/ukb_protein_cancer.csv")
 
-location_df <- read_csv("C:/Users/gsimchoni/ukb/ukb_cancer_location_df.csv")
+location_df <- read_csv("ukb/ukb_cancer_location_df.csv")
 
 # Kernel D
 dist_mat <- as.matrix(dist(location_df[, 1:2], diag=T, upper=T)^2)
@@ -101,7 +101,7 @@ p_categoricals <- melted_V %>%
     panel.background = element_blank())
 
 p_spatial | p_categoricals
-ggsave(path = "~/", filename = "lmmnn_UKB_V_matrices.png", width = 8, height = 3, device="png", dpi=700)
+ggsave(path = "images/lmmnn_UKB_V_matrices.png", width = 8, height = 3, device="png", dpi=700)
 
 # plot eigendecay
 eigens_Z1 <- eigen(Z1 %*% t(Z1))$values
@@ -131,4 +131,4 @@ p_EigV <- tibble(idx = 1:length(eigens_V), eig = eigens_V) %>%
     text = element_text(family = "Century", size = 14)
   )
 p_EigZZ | p_EigV
-ggsave(path = "~/", filename = "lmmnn_UKB_eigendecay.png", width = 8, height = 3, device="png", dpi=700)
+ggsave(path = "images/lmmnn_UKB_eigendecay.png", width = 8, height = 3, device="png", dpi=700)
