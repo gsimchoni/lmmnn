@@ -1,9 +1,12 @@
 library(tidyverse)
 library(patchwork)
-
 library(extrafont)
+
 font_import()
 loadfonts(device="win") 
+
+
+# Single categorical simulation viz ---------------------------------------
 
 RE1 <- read_csv("data/data_for_viz/RE_sig2b1.csv")
 Y1 <- read_csv("data/data_for_viz/y_test_sig2b1.csv")
@@ -74,92 +77,105 @@ p <- p1 / p2
 
 ggsave("images/sim_viz.png", p, device = "png", width = 16, height = 8, dpi = 300)
 
-############
+# Spatial data simulation viz ---------------------------------------------
 
-ukb_job <- read_csv("data/data_for_viz/ukb_job_y_test.csv")
-ukb_job_ns <- read_csv("data/data_for_viz/ukb_job_ns.csv")
-airbnb <- read_csv("data/data_for_viz/airbnb_y_test.csv")
-airbnb_ns <- read_csv("data/data_for_viz/airbnb_ns.csv")
-drugs <- read_csv("data/data_for_viz/drugs_y_test.csv")
-drugs_ns <- read_csv("data/data_for_viz/drugs_ns.csv")
-celeba <- read_csv("data/data_for_viz/celeba_y_test.csv")
-celeba_ns <- read_csv("data/data_for_viz/celeba_ns.csv")
+RE1 <- read_csv("data/data_for_viz/RE_spatial_sig2b1.csv")
+Y1 <- read_csv("data/data_for_viz/y_test_spatial_sig1.csv")
+RE10 <- read_csv("data/data_for_viz/RE_spatial_sig2b10.csv")
+Y10 <- read_csv("data/data_for_viz/y_test_spatial_sig10.csv")
 
-ukbjob_scatter_y <- ukb_job %>%
+min_b <- floor(min(min(RE1$b_true), min(RE1$b_pred)))
+max_b <- ceiling(max(max(RE1$b_true), max(RE1$b_pred)))
+
+p_heatmap_sig2b1_true <- RE1 %>%
+  mutate(lat = as.numeric(cut_interval(lat, length = 1.0)),
+         lon = as.numeric(cut_interval(lon, length = 1.0))) %>%
+  group_by(lat, lon) %>%
+  summarise(b_true = mean(b_true)) %>%
+  ggplot(aes(lon, lat)) +
+  geom_tile(aes(fill = b_true)) +
+  scale_fill_binned(breaks = seq(min_b, max_b, 1)) +
+  theme_bw() +
+  labs(x = "", y = "latitude", subtitle = "True RE") +
+  guides(fill = "none") +
+  scale_x_continuous(labels = seq(-10, 10, 5)) +
+  scale_y_continuous(labels = seq(-10, 10, 5)) +
+  theme(aspect.ratio=1, text = element_text(family = "Century", size=16),
+        plot.subtitle = element_text(hjust = 0))
+
+p_heatmap_sig2b1_pred <- RE1 %>%
+  mutate(lat = as.numeric(cut_interval(lat, length = 1.0)),
+         lon = as.numeric(cut_interval(lon, length = 1.0))) %>%
+  group_by(lat, lon) %>%
+  summarise(b_pred = mean(b_pred)) %>%
+  ggplot(aes(lon, lat)) +
+  geom_tile(aes(fill = b_pred)) +
+  scale_fill_binned(breaks = seq(min_b, max_b, 1)) +
+  theme_bw() +
+  labs(x = "", y = "", subtitle = "Predicted RE",
+       title = expression(paste(sigma[b0]^2," =1, ", q, "=10000"))) +
+  guides(fill = guide_colorbar(title="b")) +
+  scale_x_continuous(labels = seq(-10, 10, 5)) +
+  scale_y_continuous(labels = seq(-10, 10, 5)) +
+  theme(aspect.ratio=1, text = element_text(family = "Century", size=16),
+        plot.subtitle = element_text(hjust = 0),
+        plot.title = element_text(hjust = 0.5, size = 20))
+
+p_scatter_y_sig2b1 <- Y1 %>%
+  ggplot(aes(y_true, y_pred)) +
+  geom_point(alpha = 0.2) +
+  labs(x = "", y = "Predicted test y") +
+  xlim(-15, 15) +
+  ylim(-15, 15) +
+  theme_bw() +
+  theme(aspect.ratio=1, text = element_text(family = "Century", size=16))
+
+min_b <- floor(min(min(RE10$b_true), min(RE10$b_pred)))
+max_b <- ceiling(max(max(RE10$b_true), max(RE10$b_pred)))
+
+p_heatmap_sig2b10_true <- RE10 %>%
+  mutate(lat = as.numeric(cut_interval(lat, length = 1.0)),
+         lon = as.numeric(cut_interval(lon, length = 1.0))) %>%
+  group_by(lat, lon) %>%
+  summarise(b_true = mean(b_true)) %>%
+  ggplot(aes(lon, lat)) +
+  geom_tile(aes(fill = b_true)) +
+  scale_fill_binned(breaks = seq(min_b, max_b, 2)) +
+  theme_bw() +
+  guides(fill = "none") +
+  labs(x = "longitude", y = "latitude", subtitle = "True RE") +
+  scale_x_continuous(labels = seq(-10, 10, 5)) +
+  scale_y_continuous(labels = seq(-10, 10, 5)) +
+  theme(aspect.ratio=1, text = element_text(family = "Century", size=16))
+
+p_heatmap_sig2b10_pred <- RE10 %>%
+  mutate(lat = as.numeric(cut_interval(lat, length = 1.0)),
+         lon = as.numeric(cut_interval(lon, length = 1.0))) %>%
+  group_by(lat, lon) %>%
+  summarise(b_pred = mean(b_pred)) %>%
+  ggplot(aes(lon, lat)) +
+  geom_tile(aes(fill = b_pred)) +
+  scale_fill_binned(breaks = seq(min_b, max_b, 2)) +
+  theme_bw() +
+  guides(fill = guide_colorbar(title="b")) +
+  labs(x = "longitude", y = "", subtitle = "Predicted RE",
+       title = expression(paste(sigma[b0]^2," =10, ", q, "=10000"))) +
+  scale_x_continuous(labels = seq(-10, 10, 5)) +
+  scale_y_continuous(labels = seq(-10, 10, 5)) +
+  theme(aspect.ratio=1, text = element_text(family = "Century", size=16),
+        plot.title = element_text(hjust = 0.5, size = 20))
+
+p_scatter_y_sig2b10 <- Y10 %>%
   ggplot(aes(y_true, y_pred)) +
   geom_point(alpha = 0.2) +
   labs(x = "True test y", y = "Predicted test y") +
-  xlim(-3, 4) +
-  ylim(-3, 4) +
-  # geom_abline(intercept = 0, slope = 1) +
+  xlim(-15, 15) +
+  ylim(-15, 15) +
   theme_bw() +
   theme(aspect.ratio=1, text = element_text(family = "Century", size=16))
 
-ukbjob_hist_b <- ukb_job_ns %>%
-  ggplot(aes(n)) +
-  geom_histogram(alpha = 0.5) +
-  labs(x = "Category size", y = "Frequency", title = "UKB PA", subtitle = "Categorical: job,  Y: physical activity") +
-  theme_bw() +
-  theme(aspect.ratio=1, text = element_text(family = "Century", size=16),
-        plot.title = element_text(hjust = 0.5, size = 20),
-        plot.subtitle = element_text(hjust = 0.5, size = 14))
+p1 <- (p_heatmap_sig2b1_true | p_heatmap_sig2b1_pred | p_scatter_y_sig2b1)
+p2 <- (p_heatmap_sig2b10_true | p_heatmap_sig2b10_pred | p_scatter_y_sig2b10)
+p <- p1 / p2
 
-airbnb_scatter_y <- airbnb %>%
-  ggplot(aes(y_true, y_pred)) +
-  geom_point(alpha = 0.2) +
-  labs(x = "True test y", y = "") +
-  xlim(2, 8) +
-  ylim(2, 8) +
-  # geom_abline(intercept = 0, slope = 1) +
-  theme_bw() +
-  theme(aspect.ratio=1, text = element_text(family = "Century", size=16))
-
-airbnb_hist_b <- airbnb_ns %>%
-  ggplot(aes(n)) +
-  geom_histogram(alpha = 0.5) +
-  labs(x = "Category size", y = NULL, title = "Airbnb", subtitle = "Categorical: host,  Y: log(price)") +
-  theme_bw() +
-  theme(aspect.ratio=1, text = element_text(family = "Century", size=16),
-        plot.title = element_text(hjust = 0.5, size = 20),
-        plot.subtitle = element_text(hjust = 0.5, size = 14))
-
-drugs_scatter_y <- drugs %>%
-  ggplot(aes(as.factor(y_true), y_pred)) +
-  geom_boxplot(alpha = 0.5, fill = "grey") +
-  labs(x = "True test y", y = NULL) +
-  theme_bw() +
-  scale_y_continuous(breaks = seq(2, 10, 2)) +
-  theme(aspect.ratio=1, text = element_text(family = "Century", size=16))
-
-drugs_hist_b <- drugs_ns %>%
-  ggplot(aes(n)) +
-  geom_histogram(alpha = 0.5) +
-  labs(x = "Category size", y = "", title = "Drugs", subtitle = "Categorical: drug,  Y: rating") +
-  theme_bw() +
-  scale_x_continuous(breaks = c(1000, 3000, 5000)) +
-  theme(aspect.ratio=1, text = element_text(family = "Century", size=16),
-        plot.title = element_text(hjust = 0.5, size = 20),
-        plot.subtitle = element_text(hjust = 0.5, size = 14))
-
-celeba_scatter_y <- celeba %>%
-  ggplot(aes(y_true, y_pred)) +
-  geom_point(alpha = 0.2) +
-  labs(x = "True test y", y = "") +
-  xlim(55, 125) +
-  ylim(55, 125) +
-  # geom_abline(intercept = 0, slope = 1) +
-  theme_bw() +
-  theme(aspect.ratio=1, text = element_text(family = "Century", size=16))
-
-celeba_hist_b <- celeba_ns %>%
-  ggplot(aes(n)) +
-  geom_histogram(alpha = 0.5) +
-  labs(x = "Category size", y = NULL, title = "CelebA", subtitle = "Categorical: identity,  Y: noseX") +
-  theme_bw() +
-  theme(aspect.ratio=1, text = element_text(family = "Century", size=16),
-        plot.title = element_text(hjust = 0.5, size = 20),
-        plot.subtitle = element_text(hjust = 0.5, size = 14))
-
-p2 <- (ukbjob_hist_b / ukbjob_scatter_y) | (drugs_hist_b / drugs_scatter_y) | (celeba_hist_b / celeba_scatter_y) | (airbnb_hist_b / airbnb_scatter_y)
-
-ggsave("images/real_viz.png", p2, device = "png", width = 16, height = 8, dpi = 300)
+ggsave("images/sim_spatial_viz.png", p, device = "png", width = 12, height = 8, dpi = 300)
