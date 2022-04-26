@@ -3,6 +3,9 @@ library(lubridate)
 library(janitor)
 library(scales)
 
+# US Adult Asthma dataset on cencus tract level from CDC: https://www.cdc.gov/nceh/tracking/topics/asthma.htm
+# US demographic features come from US Census Demographic dataset from Kaggle: https://www.kaggle.com/datasets/muonneutrino/us-census-demographic-data
+
 # after downloading all 52 states zip files from CDC
 # setwd("asthma/")
 # 

@@ -3,6 +3,8 @@ library(lubridate)
 library(janitor)
 library(scales)
 
+# The Safecast Radiation Measurements from Kaggle: https://www.kaggle.com/datasets/safecast/safecast
+
 # read radiation data in Japan (6.5M obs out of 82M)
 # df <- read_csv("radiation_measurements/measurements.csv")
 # 
@@ -55,15 +57,3 @@ location_df <- df_small %>%
 
 df_small <- df_small %>% select(-location_id) %>% inner_join(location_df)
 df_small %>% select(-time) %>% write_csv("radiation_df_small.csv")
-
-# 100K df
-df_small <- df %>% slice_sample(n = 100000)
-
-location_df <- df_small %>%
-  select(lat, lon) %>%
-  arrange(lat, lon) %>%
-  distinct() %>%
-  mutate(location_id = 0 : (n() - 1))
-
-df_small <- df_small %>% select(-location_id) %>% inner_join(location_df)
-df_small %>% select(-time) %>% write_csv("radiation_df_100K.csv")

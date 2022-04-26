@@ -3,6 +3,7 @@ library(lubridate)
 library(janitor)
 library(scales)
 
+# US Census Demographic dataset from Kaggle: https://www.kaggle.com/datasets/muonneutrino/us-census-demographic-data
 # read in US census tract data
 df <- read_csv("us_cencus/acs2017_census_tract_data.csv")
 df_county <- read_csv("us_cencus/acs2017_county_data.csv")

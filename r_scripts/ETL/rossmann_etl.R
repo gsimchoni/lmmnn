@@ -1,5 +1,6 @@
 library(tidyverse)
 
+# Rossmann Store Sales dataset from Kaggle: https://www.kaggle.com/competitions/rossmann-store-sales/
 rossmann <- read_csv("train.csv.zip")
 ross_stores <- read_csv("store.csv")
 

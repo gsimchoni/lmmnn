@@ -1,6 +1,9 @@
 library(tidyverse)
 library(janitor)
 
+# AU anual commodities import data from Kaggle (by UN): 
+# https://www.kaggle.com/datasets/unitednations/global-commodity-trade-statistics
+
 # commodity data
 uncommodity <- read_csv("commodity_trade_statistics_data.csv")
 
@@ -24,6 +27,8 @@ au_comm %>%
   ggplot(aes(year, log(trade_usd), col = commodity)) +
   geom_line()
 
+# Other data such as temperature, child mortality, wheat yield, come from
+# ourworldindata.org, e.g. https://ourworldindata.org/co2-and-other-greenhouse-gas-emissions
 # temperature data
 temp <- read_csv("hadcrut-surface-temperature-anomaly.csv") %>%
   filter(between(Year, 1988, 2016), Entity == "Australia")

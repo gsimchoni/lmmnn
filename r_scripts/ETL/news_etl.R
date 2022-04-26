@@ -1,6 +1,8 @@
 library(tidyverse)
 library(tm)
 
+# The News popularity in social media dataset from UCI ML repository: 
+# https://archive.ics.uci.edu/ml/datasets/News+Popularity+in+Multiple+Social+Media+Platforms
 news <- read_csv("News_Final.csv") %>%
   distinct(IDLink, .keep_all = T) %>%
   mutate(hour = lubridate::hour(PublishDate),

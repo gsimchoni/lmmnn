@@ -3,6 +3,10 @@ library(lubridate)
 library(janitor)
 library(scales)
 
+# US Air Quality data on census tract level from CDC: 
+# https://data.cdc.gov/Environmental-Health-Toxicology/Daily-Census-Tract-Level-PM2-5-Concentrations-2016/7vu4-ngxx
+# US demographic features come from US Census Demographic dataset from Kaggle: https://www.kaggle.com/datasets/muonneutrino/us-census-demographic-data
+
 df <- read_csv("Daily_Census_Tract-Level_PM2.5_Concentrations__2016.csv") %>%
   filter(date == "01JAN2016")
 

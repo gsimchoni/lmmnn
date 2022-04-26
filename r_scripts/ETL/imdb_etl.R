@@ -1,7 +1,7 @@
 library(tidyverse)
 library(tm)
 
-
+# IMDB dataset from Kaggle: https://www.kaggle.com/datasets/wrandrall/imdb-new-dataset
 imdb <- read_csv("imdb_db.csv")
 colnames(imdb) <- janitor::make_clean_names(colnames(imdb))
 imdb <- imdb %>% select(movie_name, movie_date, serie_date, movie_type,

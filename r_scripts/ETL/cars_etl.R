@@ -3,6 +3,8 @@ library(lubridate)
 library(janitor)
 library(scales)
 
+# Used Cars from Craigslist dataset from Kaggle: https://www.kaggle.com/datasets/austinreese/craigslist-carstrucks-data
+
 # read used cars
 df <- read_csv("used_cars/vehicles.csv")
 
