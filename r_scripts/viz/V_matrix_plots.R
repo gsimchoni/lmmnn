@@ -70,13 +70,27 @@ p_spatial <- melted_V %>%
     panel.background = element_blank())
 
 # Multiple categorical UKB sample
+Z1 <- model.matrix(~0 + factor(ukb_s$diagnosis_id))
+Z2 <- model.matrix(~0 + factor(ukb_s$operation_id))
+Z3 <- model.matrix(~0 + factor(ukb_s$treatment_id))
+Z4 <- model.matrix(~0 + factor(ukb_s$cancer_id))
+Z5 <- model.matrix(~0 + factor(ukb_s$histology_id))
 
-Z1 <- model.matrix(~0 + factor(sort(ukb_s$diagnosis_id)))
-Z2 <- model.matrix(~0 + factor(sort(ukb_s$operation_id)))
-Z3 <- model.matrix(~0 + factor(sort(ukb_s$treatment_id)))
-Z4 <- model.matrix(~0 + factor(sort(ukb_s$cancer_id)))
-Z5 <- model.matrix(~0 + factor(sort(ukb_s$histology_id)))
+# Get V and perform PCA
+V <- diag(nrow(ukb_s)) + 1 * Z1 %*% t(Z1) + 2 * Z2 %*% t(Z2) +
+  3 * Z3 %*% t(Z3) + 4 * Z4 %*% t(Z4) + 5 * Z5 %*% t(Z5)
+dim(V)
+pca <- prcomp(V, rank. = 1)
+ord <- order(pca$x[,1])
 
+# Sort data by 1st PC of V
+ukb_s_sorted <- ukb_s[ord,]# %>% arrange(diagnosis_id, operation_id, treatment_id, cancer_id, histology_id)
+
+Z1 <- model.matrix(~0 + factor(ukb_s_sorted$diagnosis_id))
+Z2 <- model.matrix(~0 + factor(ukb_s_sorted$operation_id))
+Z3 <- model.matrix(~0 + factor(ukb_s_sorted$treatment_id))
+Z4 <- model.matrix(~0 + factor(ukb_s_sorted$cancer_id))
+Z5 <- model.matrix(~0 + factor(ukb_s_sorted$histology_id))
 V <- diag(nrow(ukb_s)) + 1 * Z1 %*% t(Z1) + 2 * Z2 %*% t(Z2) +
   3 * Z3 %*% t(Z3) + 4 * Z4 %*% t(Z4) + 5 * Z5 %*% t(Z5)
 dim(V)
@@ -101,7 +115,7 @@ p_categoricals <- melted_V %>%
     panel.background = element_blank())
 
 p_spatial | p_categoricals
-ggsave(path = "images/lmmnn_UKB_V_matrices.png", width = 8, height = 3, device="png", dpi=700)
+ggsave(filename = "images/lmmnn_UKB_V_matrices.png", width = 8, height = 3, device="png", dpi=700)
 
 # plot eigendecay
 eigens_Z1 <- eigen(Z1 %*% t(Z1))$values
@@ -131,4 +145,4 @@ p_EigV <- tibble(idx = 1:length(eigens_V), eig = eigens_V) %>%
     text = element_text(family = "Century", size = 14)
   )
 p_EigZZ | p_EigV
-ggsave(path = "images/lmmnn_UKB_eigendecay.png", width = 8, height = 3, device="png", dpi=700)
+ggsave(filename = "images/lmmnn_UKB_eigendecay.png", width = 8, height = 3, device="png", dpi=700)
