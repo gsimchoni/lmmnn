@@ -83,7 +83,11 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
                 l = int(q * params['Z_embed_dim_pct'] / 100.0)
                 b = np.random.normal(0, np.sqrt(sig2bs[k]), l)
                 W = np.random.uniform(-1, 1, q * l).reshape((q, l))
-                gZb = Z @ W @ b
+                if params.get('Z_non_linear_embed', False):
+                    ZW = (Z.toarray()[:,None,:]*W.T[None,:,:]*np.cos(Z.toarray()[:,None,:]*W.T[None,:,:])).sum(axis=2)
+                else:
+                    ZW = Z @ W
+                gZb = ZW @ b
             else:
                 b = np.random.normal(0, np.sqrt(sig2bs[k]), q)
                 gZb = np.repeat(b, ns)

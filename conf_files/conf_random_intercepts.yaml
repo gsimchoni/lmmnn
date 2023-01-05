@@ -37,6 +37,7 @@ dropout:
 activation: 'relu'
 X_non_linear: True
 Z_non_linear: False
+Z_non_linear_embed: False
 Z_embed_dim_pct: 10
 batch: 30
 epochs: 500
