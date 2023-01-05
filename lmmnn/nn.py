@@ -110,7 +110,7 @@ def reg_nn_rnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
     history = model.fit(X_train_rnn, y_train_rnn, batch_size=batch_size,
                     epochs=epochs, validation_split=0.1, verbose=verbose,
                     callbacks=callbacks)
-    y_pred = model.predict(X_test_rnn)
+    y_pred = model.predict(X_test_rnn, verbose=verbose)
     mse = np.mean((y_test_rnn[y_test_rnn != 0] - y_pred[y_test_rnn != 0])**2)
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_sigmas_spatial = [None for _ in range(n_sig2bs_spatial)]
@@ -143,7 +143,7 @@ def reg_nn_ohe_or_ignore(X_train, X_test, y_train, y_test, qs, x_cols, batch_siz
         monitor='val_loss', patience=epochs if patience is None else patience)]
     history = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs,
                         validation_split=0.1, callbacks=callbacks, verbose=verbose)
-    y_pred = model.predict(X_test).reshape(X_test.shape[0])
+    y_pred = model.predict(X_test, verbose=verbose).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_sigmas_spatial = [None for _ in range(n_sig2bs_spatial)]
     none_rhos = [None for _ in range(len(est_cors))]
@@ -205,7 +205,7 @@ def reg_nn_cnn(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
         monitor='val_loss', patience=epochs if patience is None else patience)]
     history = model.fit([X_train_features, X_train_images], y_train, batch_size=batch_size, epochs=epochs,
                         validation_split=0.1, callbacks=callbacks, verbose=verbose)
-    y_pred = model.predict([X_test_features, X_test_images]).reshape(X_test_features.shape[0])
+    y_pred = model.predict([X_test_features, X_test_images], verbose=verbose).reshape(X_test_features.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_sigmas_spatial = [None for _ in range(n_sig2bs_spatial)]
     none_rhos = [None for _ in range(len(est_cors))]
@@ -507,7 +507,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
     else:
         sig2b_spatial_ests = []
     y_pred_tr = model.predict(
-        [X_train[x_cols], y_train] + X_train_z_cols).reshape(X_train.shape[0])
+        [X_train[x_cols], y_train] + X_train_z_cols, verbose=verbose).reshape(X_train.shape[0])
     b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e_est, sig2b_ests, sig2b_spatial_ests,
                 Z_non_linear, model, ls, mode, rho_ests, est_cors, dist_matrix, weibull_ests, sample_n_train)
     dummy_y_test = np.random.normal(size=y_test.shape)
@@ -529,10 +529,10 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
                 Z_test = sparse.hstack(Z_tests)
             if mode == 'spatial_and_categoricals':
                 Z_test = sparse.hstack([Z_test, get_dummies(X_test['z0'], q_spatial)])
-            y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+            y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols, verbose=verbose).reshape(
                 X_test.shape[0]) + Z_test @ b_hat
         else:
-            y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+            y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols, verbose=verbose).reshape(
                 X_test.shape[0]) + b_hat[X_test['z0']]
         if mode == 'glmm':
             y_pred = np.exp(y_pred)/(1 + np.exp(y_pred))
@@ -545,16 +545,16 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
         for k in range(1, len(sig2b_ests)):
             Z_list.append(sparse.spdiags(t ** k, 0, N, N) @ Z0)
         Z_test = sparse.hstack(Z_list)
-        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols, verbose=verbose).reshape(
                 X_test.shape[0]) + Z_test @ b_hat
     elif mode == 'spatial_embedded':
         last_layer = Model(inputs = model.input[2], outputs = model.layers[-2].output)
-        gZ_test = last_layer.predict(X_test_z_cols)
-        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+        gZ_test = last_layer.predict(X_test_z_cols, verbose=verbose)
+        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols, verbose=verbose).reshape(
                 X_test.shape[0]) + gZ_test @ b_hat
         sig2b_spatial_ests = np.concatenate([sig2b_spatial_ests, [np.nan]])
     elif mode == 'survival':
-        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols).reshape(
+        y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols, verbose=verbose).reshape(
                 X_test.shape[0])
         y_pred = y_pred + np.log(b_hat[X_test['z0']])
     return y_pred, (sig2e_est, list(sig2b_ests), list(sig2b_spatial_ests)), list(rho_ests), list(weibull_ests), len(history.history['loss'])
@@ -596,7 +596,7 @@ def reg_nn_embed(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_
     history = model.fit([X_train[x_cols]] + X_train_z_cols, y_train,
                         batch_size=batch_size, epochs=epochs, validation_split=0.1,
                         callbacks=callbacks, verbose=verbose)
-    y_pred = model.predict([X_test[x_cols]] + X_test_z_cols,
+    y_pred = model.predict([X_test[x_cols]] + X_test_z_cols, verbose=verbose
                            ).reshape(X_test.shape[0])
     none_sigmas = [None for _ in range(n_sig2bs)]
     none_sigmas_spatial = [None for _ in range(n_sig2bs_spatial)]

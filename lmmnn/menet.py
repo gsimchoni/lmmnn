@@ -5,7 +5,7 @@ from tensorflow.keras import Model
 
 def get_feature_map(model, X):
     last_layer = Model(inputs = model.input, outputs = model.layers[-2].output)
-    return last_layer.predict(X)
+    return last_layer.predict(X, verbose=0)
 
 
 def nll_i(y_i, f_hat_i, Z_i, b_hat_i, R_hat_i, D_hat):
@@ -97,7 +97,7 @@ def menet_fit(model, X, y, clusters, n_clusters, batch_size, epochs, patience, v
 
 
 def menet_predict(model, X, clusters, n_clusters, b_hat):
-    y_hat = model.predict(X).reshape(X.shape[0])
+    y_hat = model.predict(X, verbose=0).reshape(X.shape[0])
     Z = get_feature_map(model, X)
     for cluster_id in range(n_clusters):
         indices_i = np.where(clusters == cluster_id)[0]
@@ -184,7 +184,7 @@ def menet_fit_generator(model, train_generator, valid_generator, clusters_train,
 
 
 def menet_predict_generator(model, test_generator, clusters, n_clusters, b_hat):
-    y_hat = model.predict(test_generator).reshape(test_generator.n)
+    y_hat = model.predict(test_generator, verbose=0).reshape(test_generator.n)
     Z = get_feature_map(model, test_generator)
     for cluster_id in range(n_clusters):
         indices_i = np.where(clusters == cluster_id)[0]
