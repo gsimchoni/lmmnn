@@ -273,7 +273,7 @@ def reg_nn_dkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epochs,
             if val_loss < best_val_loss:
                 es_counter = 0
                 best_val_loss = val_loss
-            elif es_counter >= patience - 1:
+            elif patience is not None and es_counter >= patience - 1:
                 break
             else:
                 es_counter += 1
@@ -374,7 +374,7 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
             if val_loss_epoch < best_val_loss:
                 es_counter = 0
                 best_val_loss = val_loss_epoch
-            elif es_counter >= patience - 1:
+            elif patience is not None and es_counter >= patience - 1:
                 break
             else:
                 es_counter += 1
