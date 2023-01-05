@@ -84,7 +84,13 @@ def generate_data(mode, qs, sig2e, sig2bs, sig2bs_spatial, q_spatial, N, rhos, p
                 b = np.random.normal(0, np.sqrt(sig2bs[k]), l)
                 W = np.random.uniform(-1, 1, q * l).reshape((q, l))
                 if params.get('Z_non_linear_embed', False):
-                    ZW = (Z.toarray()[:,None,:]*W.T[None,:,:]*np.cos(Z.toarray()[:,None,:]*W.T[None,:,:])).sum(axis=2)
+                    if q <= 200:
+                        ZW = (Z.toarray()[:,None,:]*W.T[None,:,:]*np.cos(Z.toarray()[:,None,:]*W.T[None,:,:])).sum(axis=2)
+                    else:
+                        zw_list = []
+                        for i in range(Z.shape[0]):
+                            zw_list.append(Z[i, :] * W * np.cos(Z[i, :] * W))
+                        ZW = np.concatenate(zw_list, axis=0)
                 else:
                     ZW = Z @ W
                 gZb = ZW @ b
