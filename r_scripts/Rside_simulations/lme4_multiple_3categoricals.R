@@ -4,7 +4,7 @@ library(lme4)
 
 lmmnn_utils <- import("lmmnn.utils")
 params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
-                    X_non_linear = TRUE, Z_non_linear = FALSE, Z_embed_dim_pct = 10)
+                    X_non_linear = TRUE, Z_non_linear = FALSE, Z_non_linear_embed = FALSE, Z_embed_dim_pct = 10)
 mode <- "intercepts"
 sig2e <- 1.0
 sig2b_list <- list(list(0.3, 3.0), list(0.3, 3.0), list(0.3, 3.0))

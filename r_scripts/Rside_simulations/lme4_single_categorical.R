@@ -49,7 +49,7 @@ for (sig2b in sig2b_list) {
       y_pred <- predict(out, df_test, allow.new.levels = TRUE)
       mse <- mean((y_test - y_pred)^2)
       res_list[[counter]] <- list(
-        mode = "intercepts",
+        mode = mode,
         N = N,
         sig2e = sig2e,
         sig2b = sig2b,
