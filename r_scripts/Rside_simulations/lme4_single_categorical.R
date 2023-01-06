@@ -4,7 +4,7 @@ library(lme4)
 
 lmmnn_utils <- import("lmmnn.utils")
 params_dict <- dict(n_fixed_effects = 10L, n_per_cat = 3, fixed_intercept = 1,
-                    X_non_linear = TRUE, Z_non_linear = FALSE, Z_embed_dim_pct = 10)
+                    X_non_linear = TRUE, Z_non_linear = FALSE, Z_non_linear_embed = FALSE, Z_embed_dim_pct = 10)
 mode <- "intercepts"
 sig2e <- 1.0
 sig2b_list <- c(0.1, 1.0, 10.0)
@@ -49,11 +49,11 @@ for (sig2b in sig2b_list) {
       y_pred <- predict(out, df_test, allow.new.levels = TRUE)
       mse <- mean((y_test - y_pred)^2)
       res_list[[counter]] <- list(
+        mode = "intercepts",
         N = N,
         sig2e = sig2e,
         sig2b = sig2b,
         q = q,
-        deep = FALSE,
         experiment = k,
         exp_type = "lme4",
         mse = mse,
