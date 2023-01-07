@@ -56,7 +56,7 @@ def iterate_reg_types(counter, res_df, out_file, nn_in, exp_types, verbose):
         res = run_reg_nn(nn_in, 'lmm')
         lmm_res = summarize_sim(nn_in, res, 'lmm')
         res_df.loc[next(counter)] = lmm_res
-        logger.debug('  Finished LMM.')
+        logger.debug('  Finished LMMNN.')
     if 'menet' in exp_types:
         if verbose:
             logger.info('mode menet:')
