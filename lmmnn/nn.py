@@ -532,6 +532,10 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
             y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols, verbose=verbose).reshape(
                 X_test.shape[0]) + Z_test @ b_hat
         else:
+            # if model input is that large, this 2nd call to predict may cause OOM due to GPU memory issues
+            # if that is the case use tf.convert_to_tensor() explicitly with a call to model() without using predict() method
+            # y_pred = model([tf.convert_to_tensor(X_test[x_cols]), tf.convert_to_tensor(dummy_y_test), tf.convert_to_tensor(X_test_z_cols[0])], training=False).numpy().reshape(
+            #     X_test.shape[0]) + b_hat[X_test['z0']]
             y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols, verbose=verbose).reshape(
                 X_test.shape[0]) + b_hat[X_test['z0']]
         if mode == 'glmm':
