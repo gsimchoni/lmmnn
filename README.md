@@ -2,7 +2,7 @@
 
 ## Integrating Random Effects in Deep Neural Networks
 
-This is the working directory for our NeurIPS 2021 [paper](https://papers.nips.cc/paper/2021/hash/d35b05a832e2bb91f110d54e34e2da79-Abstract.html) and the more extensive paper under review, *Integrating Random Effects in Deep Neural Networks* [arxiv](https://arxiv.org/abs/2206.03314).
+This is the working directory for our [JMLR 2023](https://jmlr.org/papers/v24/22-0501.html) and [NeurIPS 2021](https://papers.nips.cc/paper/2021/hash/d35b05a832e2bb91f110d54e34e2da79-Abstract.html) papaers.
 
 For full implementation details see the papers and supplemental material.
 
