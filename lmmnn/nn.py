@@ -406,19 +406,21 @@ def reg_nn_svdkl(X_train, X_test, y_train, y_test, qs, x_cols, batch_size, epoch
 
 def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_size, epochs, patience, n_neurons, dropout, activation,
         mode, n_sig2bs, n_sig2bs_spatial, est_cors, dist_matrix, spatial_embed_neurons,
-        verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False, idx=0, shuffle=False, sample_n_train=10000):
+        verbose=False, Z_non_linear=False, Z_embed_dim_pct=10, log_params=False, idx=0, shuffle=False, sample_n_train=10000, b_true=None):
     if mode in ['spatial', 'spatial_embedded', 'spatial_and_categoricals']:
         x_cols = [x_col for x_col in x_cols if x_col not in ['D1', 'D2']]
     if mode == 'survival':
         x_cols = [x_col for x_col in x_cols if x_col not in ['C0']]
+    # if mode == 'mme' and Z_non_linear:
+    #     qs = [q_spatial]
     # dmatrix_tf = tf.constant(dist_matrix)
     dmatrix_tf = dist_matrix
     X_input = Input(shape=(X_train[x_cols].shape[1],))
     y_true_input = Input(shape=(1,))
-    if mode in ['intercepts', 'glmm', 'spatial', 'spatial_and_categoricals']:
+    if mode in ['intercepts', 'glmm', 'spatial', 'spatial_and_categoricals', 'mme']:
         z_cols = sorted(X_train.columns[X_train.columns.str.startswith('z')].tolist())
         Z_inputs = []
-        if mode == 'spatial':
+        if mode in ['spatial', 'mme']:
             n_sig2bs_init = n_sig2bs_spatial
             n_RE_inputs = 1
         elif mode == 'spatial_and_categoricals':
@@ -449,7 +451,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
     
     out_hidden = add_layers_functional(X_input, n_neurons, dropout, activation, X_train[x_cols].shape[1])
     y_pred_output = Dense(1)(out_hidden)
-    if Z_non_linear and (mode in ['intercepts', 'glmm', 'survival']):
+    if Z_non_linear and (mode in ['intercepts', 'glmm', 'survival', 'mme']):
         Z_nll_inputs = []
         ls = []
         for k, q in enumerate(qs):
@@ -498,7 +500,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
                         callbacks=callbacks, verbose=verbose, shuffle=shuffle)
 
     sig2e_est, sig2b_ests, rho_ests, weibull_ests = model.layers[-1].get_vars()
-    if mode in ['spatial', 'spatial_embedded']:
+    if mode in ['spatial', 'spatial_embedded', 'mme']:
         sig2b_spatial_ests = sig2b_ests
         sig2b_ests = []
     elif mode == 'spatial_and_categoricals':
@@ -511,7 +513,7 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
     b_hat = calc_b_hat(X_train, y_train, y_pred_tr, qs, q_spatial, sig2e_est, sig2b_ests, sig2b_spatial_ests,
                 Z_non_linear, model, ls, mode, rho_ests, est_cors, dist_matrix, weibull_ests, sample_n_train)
     dummy_y_test = np.random.normal(size=y_test.shape)
-    if mode in ['intercepts', 'glmm', 'spatial', 'spatial_and_categoricals']:
+    if mode in ['intercepts', 'glmm', 'spatial', 'spatial_and_categoricals', 'mme']:
         if Z_non_linear or len(qs) > 1 or mode == 'spatial_and_categoricals':
             delta_loc = 0
             if mode == 'spatial_and_categoricals':
@@ -538,6 +540,9 @@ def reg_nn_lmm(X_train, X_test, y_train, y_test, qs, q_spatial, x_cols, batch_si
             #     X_test.shape[0]) + b_hat[X_test['z0']]
             y_pred = model.predict([X_test[x_cols], dummy_y_test] + X_test_z_cols, verbose=verbose).reshape(
                 X_test.shape[0]) + b_hat[X_test['z0']]
+            if mode == 'mme':
+                # this is because the final b_hat is required under this model
+                y_pred = b_hat
         if mode == 'glmm':
             y_pred = np.exp(y_pred)/(1 + np.exp(y_pred))
     elif mode == 'slopes':

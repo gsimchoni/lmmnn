@@ -14,10 +14,10 @@ class NLL(Layer):
             sig2bs, name='sig2bs', constraint=lambda x: tf.clip_by_value(x, 1e-18, np.infty))
         self.Z_non_linear = Z_non_linear
         self.mode = mode
-        if self.mode in ['intercepts', 'slopes', 'spatial', 'spatial_embedded', 'spatial_and_categoricals']:
+        if self.mode in ['intercepts', 'slopes', 'spatial', 'spatial_embedded', 'spatial_and_categoricals', 'mme']:
             self.sig2e = tf.Variable(
                 sig2e, name='sig2e', constraint=lambda x: tf.clip_by_value(x, 1e-18, np.infty))
-            if self.mode in ['spatial', 'spatial_and_categoricals']:
+            if self.mode in ['spatial', 'spatial_and_categoricals', 'mme']:
                 self.dist_matrix = dist_matrix
                 self.max_loc = dist_matrix.shape[1] - 1
                 self.spatial_delta = int(0.0 * dist_matrix.shape[1])
@@ -36,7 +36,7 @@ class NLL(Layer):
                 weibull_init[1], name='weibull_nu', constraint=lambda x: tf.clip_by_value(x, 1e-5, np.infty))
 
     def get_vars(self):
-        if self.mode in ['intercepts', 'spatial', 'spatial_embedded', 'spatial_and_categoricals']:
+        if self.mode in ['intercepts', 'spatial', 'spatial_embedded', 'spatial_and_categoricals', 'mme']:
             return self.sig2e.numpy(), self.sig2bs.numpy(), [], []
         if self.mode == 'glmm':
             return None, self.sig2bs.numpy(), [], []
@@ -90,6 +90,15 @@ class NLL(Layer):
         D = self.sig2bs[0] * tf.math.exp(-M / (2 * self.sig2bs[1]))
         return D
     
+    def getG(self, min_Z, max_Z):
+        a = tf.range(min_Z, max_Z + 1)
+        d = tf.shape(a)[0]
+        ix_ = tf.reshape(tf.stack([tf.repeat(a, d), tf.tile(a, [d])], 1), [d, d, 2])
+        M = tf.gather_nd(self.dist_matrix, ix_)
+        M = tf.cast(M, tf.float32)
+        G = self.sig2bs[0] * M
+        return G
+    
     def custom_loss_lm(self, y_true, y_pred, Z_idxs):
         N = K.shape(y_true)[0]
         V = self.sig2e * tf.eye(N)
@@ -136,6 +145,12 @@ class NLL(Layer):
             D = self.getD(min_Z, max_Z)
             Z = self.getZ(N, Z_idxs[0], min_Z, max_Z)
             V += K.dot(Z, K.dot(D, K.transpose(Z)))
+        if self.mode == 'mme':
+            min_Z = tf.reduce_min(Z_idxs[0])
+            max_Z = tf.reduce_max(Z_idxs[0])
+            G = self.getG(min_Z, max_Z)
+            Z = self.getZ(N, Z_idxs[0], min_Z, max_Z)
+            V += K.dot(Z, K.dot(G, K.transpose(Z)))
         if self.Z_non_linear:
             V_inv = tf.linalg.inv(V)
             V_inv_y = K.dot(V_inv, y_true - y_pred)
